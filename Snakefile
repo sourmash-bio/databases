@@ -7,7 +7,7 @@ REFSEQ_INPUTS = [l for l in shell('find refseq -iname "*_genomic.fna.gz"', itera
 #    REFSEQ_INPUTS = [l.strip() for l in f.readlines()]
 
 rule all:
-    input: expand("outputs/trees/scaled/{db}-d{nchildren}-k{ksize}.sbt.json", db=['refseq', 'genbank'], nchildren=[10], ksize=[21]),
+    input: expand("outputs/trees/scaled/{db}-d{nchildren}-k{ksize}.sbt.json", db=['refseq', 'genbank'], nchildren=[10], ksize=[21])
 
 #    input: expand("outputs/trees/scaled/{db}-k{ksize}.sbt.json", db=['refseq', 'genbank'], nchildren=[2], ksize=[21, 31, 51])
 #    input: expand("outputs/trees/4.5.mers/{db}-k{ksize}.sbt.json", db=['refseq', 'genbank'], nchildren=[2], ksize=[4, 5])
@@ -53,15 +53,18 @@ def sbt_inputs(w):
 
 rule sbt_tree:
     input: sbt_inputs
-    output: "outputs/trees/{config}/{db}-k{ksize}.sbt.json"
+    output: "outputs/trees/{config}/{db}-d{nchildren}-k{ksize}.sbt.json"
     threads: 32
     params:
         ksize="{ksize}",
         db="{db}",
         config="{config}",
+        nchildren="{nchildren}",
     shell: """
 		mkdir -p `dirname {output}`
         sourmash sbt_index -k {params.ksize} \
+                           -d {params.nchildren} \
+                           -x 1e6 \
                            --traverse-directory \
                            {output} outputs/sigs/{params.config}/{params.db}
     """
