@@ -1,5 +1,9 @@
-GENBANK_INPUTS = [l for l in shell('find genbank -iname "*_genomic.fna.gz"', iterable=True) if l]
-REFSEQ_INPUTS = [l for l in shell('find refseq -iname "*_genomic.fna.gz"', iterable=True) if l]
+GENBANK_INPUTS = [l for l in shell('find /home/irber/ncbi/genbank/fungi -iname "*_genomic.fna.gz"', iterable=True) if l]
+#REFSEQ_INPUTS = [l for l in shell('find refseq -iname "*_genomic.fna.gz"', iterable=True) if l]
+
+import os.path
+def relpath(x):
+    return os.path.relpath(x, '/home/irber/ncbi')
 
 #with open('genbank_inputs', 'r') as f:
 #    GENBANK_INPUTS = [l.strip() for l in f.readlines()]
@@ -7,13 +11,7 @@ REFSEQ_INPUTS = [l for l in shell('find refseq -iname "*_genomic.fna.gz"', itera
 #    REFSEQ_INPUTS = [l.strip() for l in f.readlines()]
 
 rule all:
-    input: expand("outputs/trees/scaled/{db}-d{nchildren}-k{ksize}.sbt.json", db=['refseq', 'genbank'], nchildren=[10], ksize=[21])
-
-#    input: expand("outputs/trees/scaled/{db}-k{ksize}.sbt.json", db=['refseq', 'genbank'], nchildren=[2], ksize=[21, 31, 51])
-#    input: expand("outputs/trees/4.5.mers/{db}-k{ksize}.sbt.json", db=['refseq', 'genbank'], nchildren=[2], ksize=[4, 5])
-
-#    input: expand("outputs/trees/scaled/{db}-d{nchildren}-k{ksize}.sbt.json", db=['refseq', 'genbank'], nchildren=[2, 5, 10], ksize=[21, 31, 51]),
-#           expand("outputs/trees/4.5.mers/{db}-d{nchildren}-k{ksize}.sbt.json", db=['refseq', 'genbank'], nchildren=[2, 5, 10], ksize=[4, 5])
+    input: expand("outputs/trees/scaled/{db}-d{nchildren}-k{ksize}.sbt.json", db=['genbank'], nchildren=[10], ksize=[21])
 
 rule tetramer_sigs:
     input: "{db}/{group}/{id}/{filename}_genomic.fna.gz"
@@ -31,7 +29,7 @@ rule tetramer_sigs:
 	"""
 
 rule scaled_sigs:
-    input: "{db}/{group}/{id}/{filename}_genomic.fna.gz"
+    input: "/home/irber/ncbi/{db}/{group}/{id}/{filename}_genomic.fna.gz"
     output: "outputs/sigs/scaled/{db}/{group}/{id}/{filename}_genomic.fna.gz.sig"
     params: filename="{filename}"
     threads: 1
@@ -49,7 +47,9 @@ def sbt_inputs(w):
     if w.db == 'refseq':
         return expand("outputs/sigs/{config}/{ids}.sig", config=w.config, ids=REFSEQ_INPUTS)
     elif w.db == 'genbank':
-        return expand("outputs/sigs/{config}/{ids}.sig", config=w.config, ids=GENBANK_INPUTS)
+        x = expand("outputs/sigs/{config}/{ids}.sig", config=w.config, ids=[ relpath(x) for x in GENBANK_INPUTS ])
+	print(x)
+	return x
 
 rule sbt_tree:
     input: sbt_inputs
@@ -62,7 +62,7 @@ rule sbt_tree:
         nchildren="{nchildren}",
     shell: """
 		mkdir -p `dirname {output}`
-        sourmash sbt_index -k {params.ksize} \
+        sourmash index -k {params.ksize} \
                            -d {params.nchildren} \
                            -x 1e6 \
                            --traverse-directory \
