@@ -1,5 +1,7 @@
-GENBANK_INPUTS = [l for l in shell('find /home/irber/ncbi/genbank/fungi -iname "*_genomic.fna.gz"', iterable=True) if l]
-#REFSEQ_INPUTS = [l for l in shell('find refseq -iname "*_genomic.fna.gz"', iterable=True) if l]
+DOMAINS=['fungi', 'viral']
+GENBANK_INPUTS = {}
+for domain in DOMAINS:
+    GENBANK_INPUTS[domain] = [l for l in shell('find /home/irber/ncbi/genbank/{domain} -iname "*_genomic.fna.gz"', iterable=True) if l]
 
 import os.path
 def relpath(x):
@@ -7,11 +9,10 @@ def relpath(x):
 
 #with open('genbank_inputs', 'r') as f:
 #    GENBANK_INPUTS = [l.strip() for l in f.readlines()]
-#with open('refseq_inputs', 'r') as f:
-#    REFSEQ_INPUTS = [l.strip() for l in f.readlines()]
 
 rule all:
-    input: expand("outputs/trees/scaled/{db}-d{nchildren}-k{ksize}.sbt.json", db=['genbank'], nchildren=[10], ksize=[21])
+    input:
+        expand("outputs/trees/scaled/{db}-{domain}-d{nchildren}-k{ksize}.sbt.json", db=['genbank'], nchildren=[10], ksize=[21], domain=DOMAINS)
 
 rule tetramer_sigs:
     input: "{db}/{group}/{id}/{filename}_genomic.fna.gz"
@@ -47,13 +48,16 @@ def sbt_inputs(w):
     if w.db == 'refseq':
         return expand("outputs/sigs/{config}/{ids}.sig", config=w.config, ids=REFSEQ_INPUTS)
     elif w.db == 'genbank':
-        x = expand("outputs/sigs/{config}/{ids}.sig", config=w.config, ids=[ relpath(x) for x in GENBANK_INPUTS ])
+        x = expand("outputs/sigs/{config}/{ids}.sig", config=w.config, ids=[ relpath(x) for x in GENBANK_INPUTS[w.domain] ])
 	print(x)
 	return x
 
+    print(repr(w), w.db)
+
+
 rule sbt_tree:
     input: sbt_inputs
-    output: "outputs/trees/{config}/{db}-d{nchildren}-k{ksize}.sbt.json"
+    output: "outputs/trees/{config}/{db}-{domain}-d{nchildren}-k{ksize}.sbt.json"
     threads: 32
     params:
         ksize="{ksize}",
