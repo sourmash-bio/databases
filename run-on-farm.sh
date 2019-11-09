@@ -3,11 +3,11 @@
 #SBATCH -J sgc
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=titus@idyll.org
-#SBATCH -t 1-0:00:00
+#SBATCH -t 3-0:00:00
 #SBATCH -N 1
 #SBATCH -n 1
 #SBATCH -c 32
-#SBATCH --mem=130gb
+#SBATCH --mem=10gb
 
 . "/home/ctbrown/miniconda3/etc/profile.d/conda.sh"
 
@@ -19,7 +19,10 @@ set -o nounset
 set -o errexit
 set -x
 
-snakemake -p -j 32
+for i in {1..20}
+do
+   snakemake -p -j 32 --batch sbt_tree=$i/20
+done
 
 #echo ${SLURM_JOB_NODELIST}       # Output Contents of the SLURM NODELIST
 
