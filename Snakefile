@@ -10,6 +10,31 @@ import os.path
 def relpath(x):
     return os.path.relpath(x, '/home/irber/ncbi')
 
+def list_all_sigs():
+    all_sigs = []
+    for domain in DOMAINS:
+        ids = [ relpath(x) for x in GENBANK_INPUTS[domain] ]
+        all_sigs.extend(expand("outputs/sigs/scaled/{ids}.sig", ids=ids))
+    print('calculating {} sigs'.format(len(all_sigs)))
+
+    return all_sigs
+
+def calc_undone_sigs():
+    global full_list_sigs
+
+    BATCHSIZE=10
+    batch = []
+    for n, sigfile in enumerate(full_list_sigs):
+        if not os.path.exists(sigfile):
+            batch.append(sigfile)
+        print(n, len(batch))
+        if len(batch) >= BATCHSIZE:
+            yield batch
+            batch = []
+
+# calculate all output sigs / hardcoded for now
+full_list_sigs = list_all_sigs()
+
 # rule 'all' builds specific SBTs.
 rule all:
     input:
@@ -45,20 +70,9 @@ def sbt_inputs(w):
 # rule 'all_sigs' will build all specific signature files.
 # (maybe this will run faster than relying on SBT rule to specify?)
 
-def list_all_sigs():
-    all_sigs = []
-    for domain in DOMAINS:
-        ids = [ relpath(x) for x in GENBANK_INPUTS[domain] ]
-        all_sigs.extend(expand("outputs/sigs/scaled/{ids}.sig", ids=ids))
-    print('calculating {} sigs'.format(len(all_sigs)))
-    all_sigs = all_sigs[-50000:]
-
-    print("\n".join(all_sigs[:10]))
-    return all_sigs
-
 rule all_sigs:
     input:
-        list_all_sigs()
+        next(iter(calc_undone_sigs()))
 
 # build actual SBT!
 rule sbt_tree:
