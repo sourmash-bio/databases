@@ -1,5 +1,5 @@
 # load in list of genomes by domain
-DOMAINS=['fungi', 'viral'] #, 'bacteria', 'archaea']
+DOMAINS=['fungi', 'viral', 'bacteria', 'archaea']
 GENBANK_INPUTS = {}
 for domain in DOMAINS:
 #    GENBANK_INPUTS[domain] = [l for l in shell('find /home/irber/ncbi/genbank/{domain} -iname "*_genomic.fna.gz"', iterable=True) if l]
@@ -50,6 +50,10 @@ def list_all_sigs():
     for domain in DOMAINS:
         ids = [ relpath(x) for x in GENBANK_INPUTS[domain] ]
         all_sigs.extend(expand("outputs/sigs/scaled/{ids}.sig", ids=ids))
+    print('calculating {} sigs'.format(len(all_sigs)))
+    all_sigs = all_sigs[-50000:]
+
+    print("\n".join(all_sigs[:10]))
     return all_sigs
 
 rule all_sigs:

@@ -19,10 +19,7 @@ set -o nounset
 set -o errexit
 set -x
 
-for i in {1..20}
-do
-   snakemake -p -j 32 --batch sbt_tree=$i/20
-done
+snakemake -p -j 32 all_sigs --unlock
 
 #echo ${SLURM_JOB_NODELIST}       # Output Contents of the SLURM NODELIST
 
