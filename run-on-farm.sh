@@ -19,7 +19,10 @@ set -o nounset
 set -o errexit
 set -x
 
-snakemake -p -j 32 all_sigs --unlock
+for i in $(seq 1 1000)
+do
+    snakemake -p -j 32 all_sigs
+done
 
 #echo ${SLURM_JOB_NODELIST}       # Output Contents of the SLURM NODELIST
 

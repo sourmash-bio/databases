@@ -12,28 +12,48 @@ def relpath(x):
 
 def list_all_sigs():
     all_sigs = []
-    for domain in DOMAINS:
-        ids = [ relpath(x) for x in GENBANK_INPUTS[domain] ]
-        all_sigs.extend(expand("outputs/sigs/scaled/{ids}.sig", ids=ids))
-    print('calculating {} sigs'.format(len(all_sigs)))
+
+    if os.path.exists('sigs-todo.txt'):
+        all_sigs = [ x.strip() for x in open('sigs-todo.txt') ]
+        print('loaded {} sigs from sigs-todo.txt'.format(len(all_sigs)))
+    else:
+        print('loading sigs from individual domains...')
+        for domain in DOMAINS:
+            ids = [ relpath(x) for x in GENBANK_INPUTS[domain] ]
+            all_sigs.extend(expand("outputs/sigs/scaled/{ids}.sig", ids=ids))
+    print('calculating up to {} sigs'.format(len(all_sigs)))
 
     return all_sigs
 
 def calc_undone_sigs():
     global full_list_sigs
+    global done_sigs
 
-    BATCHSIZE=10
+    BATCHSIZE=5000
     batch = []
     for n, sigfile in enumerate(full_list_sigs):
-        if not os.path.exists(sigfile):
+        if os.path.exists(sigfile):
+            done_sigs.add(sigfile)
+        else:
             batch.append(sigfile)
-        print(n, len(batch))
+            
         if len(batch) >= BATCHSIZE:
-            yield batch
-            batch = []
+            print('looked at {}, calculating {}'.format(n, len(batch)))
+
+            if done_sigs:
+                remaining = set(full_list_sigs) - done_sigs
+                print('removed known done sigs, from {} to {}'.format(len(full_list_sigs), len(remaining)))
+                with open('sigs-todo.txt', 'wt') as fp:
+                    fp.write("\n".join(remaining))
+            
+            return batch
 
 # calculate all output sigs / hardcoded for now
 full_list_sigs = list_all_sigs()
+done_sigs = set()
+
+#import random
+#random.shuffle(full_list_sigs)
 
 # rule 'all' builds specific SBTs.
 rule all:
@@ -72,7 +92,7 @@ def sbt_inputs(w):
 
 rule all_sigs:
     input:
-        next(iter(calc_undone_sigs()))
+        calc_undone_sigs()
 
 # build actual SBT!
 rule sbt_tree:
