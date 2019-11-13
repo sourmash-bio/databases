@@ -1,5 +1,5 @@
 # load in list of genomes by domain
-DOMAINS=['fungi', 'viral', 'bacteria', 'archaea']
+DOMAINS=['fungi'] #, 'viral', 'archaea'] # missing bacteria
 GENBANK_INPUTS = {}
 for domain in DOMAINS:
 #    GENBANK_INPUTS[domain] = [l for l in shell('find /home/irber/ncbi/genbank/{domain} -iname "*_genomic.fna.gz"', iterable=True) if l]
@@ -115,7 +115,7 @@ rule sbt_tree:
                            -d {params.nchildren} \
                            -x 1e6 \
                            --traverse-directory \
-                           {output} outputs/sigs/{params.config}/{params.db}
+                           {output} outputs/sigs/{params.config}/{params.db}/{domain}
     """
 
 # deprecated
