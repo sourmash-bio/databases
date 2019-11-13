@@ -23,6 +23,9 @@ def list_all_sigs():
             all_sigs.extend(expand("outputs/sigs/scaled/{ids}.sig", ids=ids))
     print('calculating up to {} sigs'.format(len(all_sigs)))
 
+    import random
+    random.shuffle(all_sigs)
+
     return all_sigs
 
 def calc_undone_sigs():
@@ -31,6 +34,7 @@ def calc_undone_sigs():
 
     BATCHSIZE=5000
     batch = []
+    n = 0
     for n, sigfile in enumerate(full_list_sigs):
         if os.path.exists(sigfile):
             done_sigs.add(sigfile)
@@ -38,22 +42,23 @@ def calc_undone_sigs():
             batch.append(sigfile)
             
         if len(batch) >= BATCHSIZE:
-            print('looked at {}, calculating {}'.format(n, len(batch)))
+            break
 
-            if done_sigs:
-                remaining = set(full_list_sigs) - done_sigs
-                print('removed known done sigs, from {} to {}'.format(len(full_list_sigs), len(remaining)))
-                with open('sigs-todo.txt', 'wt') as fp:
-                    fp.write("\n".join(remaining))
-            
-            return batch
+    print('looked at {}, calculating {}'.format(n, len(batch)))
+
+    if done_sigs:
+        remaining = set(full_list_sigs) - done_sigs
+        print('removed known done sigs, from {} to {}'.format(len(full_list_sigs), len(remaining)))
+        with open('sigs-todo.txt', 'wt') as fp:
+            fp.write("\n".join(remaining))
+
+    print(batch[:10])
+
+    return batch
 
 # calculate all output sigs / hardcoded for now
 full_list_sigs = list_all_sigs()
 done_sigs = set()
-
-#import random
-#random.shuffle(full_list_sigs)
 
 # rule 'all' builds specific SBTs.
 rule all:
