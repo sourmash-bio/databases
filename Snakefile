@@ -63,7 +63,7 @@ done_sigs = set()
 # rule 'all' builds specific SBTs.
 rule all:
     input:
-        expand("outputs/trees/scaled/{db}-{domain}-d{nchildren}-k{ksize}.sbt.json", db=['genbank'], nchildren=[10], ksize=[21], domain=DOMAINS)
+        expand("outputs/trees/scaled/{db}-{domain}-d{nchildren}-x{bfsize}-k{ksize}.sbt.json", db=['genbank'], nchildren=[2, 10], ksize=[21], domain=DOMAINS, bfsize=["1e4", "1e5", "1e6"])
 
 # build scaled signatures needed for the SBTs.
 rule scaled_sigs:
@@ -87,7 +87,7 @@ def sbt_inputs(w):
         return expand("outputs/sigs/{config}/{ids}.sig", config=w.config, ids=REFSEQ_INPUTS)
     elif w.db == 'genbank':
         x = expand("outputs/sigs/{config}/{ids}.sig", config=w.config, ids=[ relpath(x) for x in GENBANK_INPUTS[w.domain] ])
-	print(x)
+	print('gathered {} sbt inputs for sbt {}'.format(len(x), w.db))
 	return x
 
     print(repr(w), w.db)
@@ -102,20 +102,22 @@ rule all_sigs:
 # build actual SBT!
 rule sbt_tree:
     input: sbt_inputs
-    output: "outputs/trees/{config}/{db}-{domain}-d{nchildren}-k{ksize}.sbt.json"
+    output: "outputs/trees/{config}/{db}-{domain}-d{nchildren}-x{bfsize}-k{ksize}.sbt.json"
     threads: 32
     params:
         ksize="{ksize}",
         db="{db}",
         config="{config}",
         nchildren="{nchildren}",
+	domain="{domain}",
+        bfsize="{bfsize}"
     shell: """
 		mkdir -p `dirname {output}`
         sourmash index -k {params.ksize} \
                            -d {params.nchildren} \
-                           -x 1e6 \
+                           -x {params.bfsize} \
                            --traverse-directory \
-                           {output} outputs/sigs/{params.config}/{params.db}/{domain}
+                           {output} outputs/sigs/{params.config}/{params.db}/{params.domain}
     """
 
 # deprecated

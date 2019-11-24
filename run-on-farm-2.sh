@@ -1,15 +1,15 @@
 #!/bin/bash -login
 #SBATCH -p bmh
-#SBATCH -J sgc
+#SBATCH -J sourmash-build
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=titus@idyll.org
 #SBATCH -t 3-0:00:00
 #SBATCH -N 1
 #SBATCH -n 1
-#SBATCH -c 32
-#SBATCH --mem=10gb
+#SBATCH -c 1
+#SBATCH --mem=120gb
 
-# use to build signatures
+# use to build trees
 
 . "/home/ctbrown/miniconda3/etc/profile.d/conda.sh"
 
@@ -21,10 +21,7 @@ set -o nounset
 set -o errexit
 set -x
 
-for i in $(seq 1 1000)
-do
-    snakemake -p -j 32 all_sigs
-done
+snakemake -p
 
 #echo ${SLURM_JOB_NODELIST}       # Output Contents of the SLURM NODELIST
 
