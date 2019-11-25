@@ -1,5 +1,5 @@
 # load in list of genomes by domain
-DOMAINS=['fungi'] #, 'viral', 'archaea'] # missing bacteria
+DOMAINS=['fungi', 'viral', 'archaea'] # missing bacteria
 GENBANK_INPUTS = {}
 for domain in DOMAINS:
 #    GENBANK_INPUTS[domain] = [l for l in shell('find /home/irber/ncbi/genbank/{domain} -iname "*_genomic.fna.gz"', iterable=True) if l]
@@ -63,7 +63,8 @@ done_sigs = set()
 # rule 'all' builds specific SBTs.
 rule all:
     input:
-        expand("outputs/trees/scaled/{db}-{domain}-d{nchildren}-x{bfsize}-k{ksize}.sbt.json", db=['genbank'], nchildren=[2, 10], ksize=[21], domain=DOMAINS, bfsize=["1e4", "1e5", "1e6"])
+        expand("outputs/trees/scaled/{db}-{domain}-d{nchildren}-x{bfsize}-k{ksize}.sbt.json", db=['genbank'], nchildren=[2, 10], ksize=[21], domain=DOMAINS, bfsize=["1e4", "1e5", "1e6"]),
+        expand("outputs/lca/scaled/{db}-{domain}-k{ksize}-scaled10k.lca.json.gz", db=['genbank'], domain=DOMAINS, ksize=[21])
 
 # build scaled signatures needed for the SBTs.
 rule scaled_sigs:
@@ -117,6 +118,28 @@ rule sbt_tree:
                            -d {params.nchildren} \
                            -x {params.bfsize} \
                            --traverse-directory \
+                           {output} outputs/sigs/{params.config}/{params.db}/{params.domain}
+    """
+
+# build LCA
+rule lca_db:
+    input:
+        sbt_inputs,
+        "domain-{domain}.lineages.csv"
+    output:
+        "outputs/lca/{config}/{db}-{domain}-k{ksize}-scaled10k.lca.json.gz",
+    threads: 32
+    params:
+        ksize="{ksize}",
+        db="{db}",
+	domain="{domain}",
+        config="{config}"
+    shell: """
+		mkdir -p `dirname {output}`
+        sourmash lca index -k {params.ksize} \
+                           --scaled 10000
+                           --traverse-directory -C 3 --split-identifiers \
+                           domain-{params.domain}.lineages.csv \
                            {output} outputs/sigs/{params.config}/{params.db}/{params.domain}
     """
 
