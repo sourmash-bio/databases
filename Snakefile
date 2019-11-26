@@ -1,16 +1,25 @@
+import os.path
+import random
+
+configfile: "config.yml"
+
+# number of signatures to calculate in a single run
+BATCHSIZE=5000
+
 # load in list of genomes by domain
-DOMAINS=['fungi', 'viral', 'archaea'] # missing bacteria
+DOMAINS=config['domains']
+
+# load in files for each domain
 GENBANK_INPUTS = {}
 for domain in DOMAINS:
-#    GENBANK_INPUTS[domain] = [l for l in shell('find /home/irber/ncbi/genbank/{domain} -iname "*_genomic.fna.gz"', iterable=True) if l]
     GENBANK_INPUTS[domain] = [ x.strip() for x in open('domain-{}.txt'.format(domain)) ]
 
 # function to remove prefix
-import os.path
 def relpath(x):
-    return os.path.relpath(x, '/home/irber/ncbi')
+    return os.path.relpath(x, config['genome_location'])
 
 def list_all_sigs():
+    "Get a list of signatures that may need to be calculated."
     all_sigs = []
 
     if os.path.exists('sigs-todo.txt'):
@@ -23,16 +32,15 @@ def list_all_sigs():
             all_sigs.extend(expand("outputs/sigs/scaled/{ids}.sig", ids=ids))
     print('calculating up to {} sigs'.format(len(all_sigs)))
 
-    import random
     random.shuffle(all_sigs)
 
     return all_sigs
 
 def calc_undone_sigs():
+    "Collect up to BATCHSIZE undone signatures."
     global full_list_sigs
     global done_sigs
 
-    BATCHSIZE=5000
     batch = []
     n = 0
     for n, sigfile in enumerate(full_list_sigs):
@@ -56,7 +64,9 @@ def calc_undone_sigs():
 
     return batch
 
-# calculate all output sigs / hardcoded for now
+###
+
+# all output sigs
 full_list_sigs = list_all_sigs()
 done_sigs = set()
 
@@ -88,7 +98,7 @@ def sbt_inputs(w):
         return expand("outputs/sigs/{config}/{ids}.sig", config=w.config, ids=REFSEQ_INPUTS)
     elif w.db == 'genbank':
         x = expand("outputs/sigs/{config}/{ids}.sig", config=w.config, ids=[ relpath(x) for x in GENBANK_INPUTS[w.domain] ])
-	print('gathered {} sbt inputs for sbt {}'.format(len(x), w.db))
+	print('gathered {} sbt inputs for {} / {}'.format(len(x), w.db, w.domain))
 	return x
 
     print(repr(w), w.db)
@@ -137,7 +147,7 @@ rule lca_db:
     shell: """
 		mkdir -p `dirname {output}`
         sourmash lca index -k {params.ksize} \
-                           --scaled 10000
+                           --scaled 10000 \
                            --traverse-directory -C 3 --split-identifiers \
                            domain-{params.domain}.lineages.csv \
                            {output} outputs/sigs/{params.config}/{params.db}/{params.domain}
