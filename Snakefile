@@ -135,7 +135,7 @@ rule sbt_tree:
 rule lca_db:
     input:
         sbt_inputs,
-        "domain-{domain}.lineages.csv"
+        "domain-{domain}.acc.lineages.csv"
     output:
         "outputs/lca/{config}/{db}-{domain}-k{ksize}-scaled10k.lca.json.gz",
     threads: 32
@@ -149,7 +149,7 @@ rule lca_db:
         sourmash lca index -k {params.ksize} \
                            --scaled 10000 \
                            --traverse-directory -C 3 --split-identifiers \
-                           domain-{params.domain}.lineages.csv \
+                           domain-{params.domain}.acc.lineages.csv \
                            {output} outputs/sigs/{params.config}/{params.db}/{params.domain}
     """
 
