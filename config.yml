@@ -1,0 +1,23 @@
+domains:
+- fungi
+- viral
+- archaea
+
+# top level directory containing genbank/ subdirectory
+genome_location: /home/irber/ncbi
+
+# ksizes to build the databases for
+db_ksizes:
+- 21
+- 31
+- 51
+
+# should be genbank
+db:
+- genbank
+
+# bloom filter sizes for SBTs
+bfsize:
+- 1e4
+- 1e5
+- 1e6
