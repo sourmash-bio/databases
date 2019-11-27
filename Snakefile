@@ -73,8 +73,8 @@ done_sigs = set()
 # rule 'all' builds specific SBTs.
 rule all:
     input:
-        expand("outputs/trees/scaled/{db}-{domain}-d{nchildren}-x{bfsize}-k{ksize}.sbt.json", db=['genbank'], nchildren=[2, 10], ksize=[21], domain=DOMAINS, bfsize=["1e4", "1e5", "1e6"]),
-        expand("outputs/lca/scaled/{db}-{domain}-k{ksize}-scaled10k.lca.json.gz", db=['genbank'], domain=DOMAINS, ksize=[21])
+        expand("outputs/trees/scaled/{db}-{domain}-d{nchildren}-x{bfsize}-k{ksize}.sbt.json", db=['genbank'], nchildren=[2, 10], ksize=config['db_ksizes'], domain=DOMAINS, bfsize=["1e4", "1e5", "1e6"]),
+        expand("outputs/lca/scaled/{db}-{domain}-k{ksize}-scaled10k.lca.json.gz", db=['genbank'], domain=DOMAINS, ksize=config['db_ksizes'])
 
 # build scaled signatures needed for the SBTs.
 rule scaled_sigs:
@@ -114,7 +114,6 @@ rule all_sigs:
 rule sbt_tree:
     input: sbt_inputs
     output: "outputs/trees/{config}/{db}-{domain}-d{nchildren}-x{bfsize}-k{ksize}.sbt.json"
-    threads: 32
     params:
         ksize="{ksize}",
         db="{db}",
@@ -138,7 +137,6 @@ rule lca_db:
         "domain-{domain}.acc.lineages.csv"
     output:
         "outputs/lca/{config}/{db}-{domain}-k{ksize}-scaled10k.lca.json.gz",
-    threads: 32
     params:
         ksize="{ksize}",
         db="{db}",
