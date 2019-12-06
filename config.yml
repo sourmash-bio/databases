@@ -2,6 +2,7 @@ domains:
 - fungi
 - viral
 - archaea
+- bacteria
 
 # top level directory containing genbank/ subdirectory
 genome_location: /home/irber/ncbi

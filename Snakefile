@@ -146,6 +146,7 @@ rule lca_db:
 		mkdir -p `dirname {output}`
         sourmash lca index -k {params.ksize} \
                            --scaled 10000 \
+                           --report report-lca-{params.db}-{params.domain}-{params.ksize}.txt \
                            --traverse-directory -C 3 --split-identifiers \
                            domain-{params.domain}.acc.lineages.csv \
                            {output} outputs/sigs/{params.config}/{params.db}/{params.domain}

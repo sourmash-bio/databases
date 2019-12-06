@@ -7,7 +7,7 @@
 #SBATCH -N 1
 #SBATCH -n 1
 #SBATCH -c 1
-#SBATCH --mem=120gb
+#SBATCH --mem=200gb
 
 # use to build trees
 
@@ -21,7 +21,7 @@ set -o nounset
 set -o errexit
 set -x
 
-snakemake -p
+snakemake -p outputs/trees/scaled/genbank-bacteria-d2-x1e5-k{21,51}.sbt.json
 
 #echo ${SLURM_JOB_NODELIST}       # Output Contents of the SLURM NODELIST
 
