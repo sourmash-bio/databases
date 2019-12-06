@@ -1,0 +1,7 @@
+.snakemake
+outputs/
+*~
+sigs-todo.txt
+domain-*.txt
+*.lineages.csv
+*.taxid
