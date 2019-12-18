@@ -47,7 +47,7 @@ def main():
         gtdb_ident_to_acc[ident] = acc
 
     # output new spreadsheet
-    fp = open('gtdb-new-tax.tsv', 'wt')
+    fp = open('gtdb_files/gtdb-new-tax.tsv', 'wt')
     w = csv.writer(fp, delimiter='\t')
     w.writerow(['identifier', 'taxonomy', 'filename', 'first_accession'])
     for ident in gtdb_ident_to_tax:
@@ -57,13 +57,14 @@ def main():
 
         w.writerow([ident, tax, filename, acc])
 
-    print('created gtdb-new-tax.tsv')
+    print('created gtdb_files/gtdb-new-tax.tsv')
 
-    fp = open('gtdb-lineage.csv', 'wt')
+    fp = open('gtdb_files/gtdb-lineages.csv', 'wt')
     w = csv.writer(fp)
     w.writerow('accession,gtdb_id,superkingdom,phylum,class,order,family,genus,species'.split(','))
     for ident, tax in gtdb_ident_to_tax.items():
         acc = gtdb_ident_to_acc[ident]
+        acc = acc.split('.')[0]
         row = [acc, ident] + tax.split(';')
 
         w.writerow(row)
