@@ -8,6 +8,7 @@ import os
 def main():
     p = argparse.ArgumentParser()
     p.add_argument('gtdb_taxonomy_tsv')
+    p.add_argument('-o', '--output', default='gtdb_files/gtdb-lineages.csv')
     args = p.parse_args()
 
     fp = open(args.gtdb_taxonomy_tsv)
@@ -28,15 +29,18 @@ def main():
 
     print('loaded {} tax entries'.format(len(gtdb_ident_to_tax)))
 
-    fp = open('gtdb_files/gtdb-lineages.csv', 'wt')
+    fp = open(args.output, 'wt')
     w = csv.writer(fp)
-    w.writerow('accession,gtdb_id,superkingdom,phylum,class,order,family,genus,species'.split(','))
+    w.writerow('accession,filename,superkingdom,phylum,class,order,family,genus,species'.split(','))
     for ident, tax in gtdb_ident_to_tax.items():
-        row = [ident] + tax.split(';')
+
+        acc = ident.split('.')[0]
+        filename = ident + '_genomic.fna.gz'
+        row = [acc,filename] + tax.split(';')
 
         w.writerow(row)
 
-    print('created gtdb_files/gtdb-lineages.csv')
+    print('created {}'.format(args.output))
     
 if __name__ == '__main__':
     main()

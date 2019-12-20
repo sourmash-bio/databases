@@ -1,0 +1,4 @@
+genomes_location: /home/ctbrown/gtdbtk/release89/fastani/database
+sigs_output_location: database/
+gtdb_taxonomy_tsv: /home/ctbrown/gtdbtk/release89/taxonomy/gtdb_taxonomy.tsv
+
