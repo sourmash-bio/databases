@@ -1,0 +1,40 @@
+# first, gather all '.fna.gz'
+import os
+import random
+
+configfile: "config.yml"
+
+genomes_location = config['genomes_location']
+sigs_output_location = config['sigs_output_location']
+
+all_files = []
+for root, dirs, files in os.walk(genomes_location, topdown=False):
+    for name in files:
+        if name.endswith('_genomic.fna.gz'):
+            filename = os.path.join(root, name)
+            if filename.startswith('./'): filename = filename[2:]
+            all_files.append(filename)
+
+print('found {} files under {}'.format(len(all_files), genomes_location))
+random.shuffle(all_files)
+print('examples:', all_files[:5])
+
+def make_sigfile(filename):
+    genomefile = os.path.basename(filename)
+    sigfile = os.path.join(sigs_output_location, genomefile) + '.sig'
+
+    return sigfile
+
+# rule all: make sigs
+rule all:
+    input:
+        [ make_sigfile(genomefile) for genomefile in all_files ]
+
+# generic rule: compute signature
+rule compute_sig:
+    input:
+        os.path.join(genomes_location, "{filename}")
+    output:
+        os.path.join(sigs_output_location + "{filename}.sig")
+    shell:
+        "sourmash compute -k 21,31,51 --scaled=2000 {input} -o {output} --merge=$(basename {input} _genomic.fna.gz)"

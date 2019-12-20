@@ -1,0 +1,3 @@
+#genomes_location: /home/ctbrown/gtdbtk/release89/fastani
+genomes_location: database-test/
+sigs_output_location: database-test-foo/
