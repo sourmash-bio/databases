@@ -55,28 +55,24 @@ rule make_lca_db:
                            gtdb-release89-k31.lca.json.gz {sigs_output_location}
         """
 
-class _lookupName(object):
-    def __init__(self):
-        self.filename_to_names = None
+filename_to_names = None
+def lookup_name(filename):
+    global filename_to_names
 
-    def _load(self):
+    if filename_to_names is None:
         import csv
         d = {}
         with open('gtdb-lineages.csv', 'rt') as fp:
             r = csv.DictReader(fp)
             for row in r:
-                d[row['filename']] = "{} {}".format(row['accession'], row['species'])
-        self.filename_to_names = d
+                filename = row['filename']
+                name = "{} {}".format(row['accession'], row['species'])
+                d[filename] = name
+        filename_to_names = d
 
-    def __getitem__(self, key):
-        if self.filename_to_names is None:
-            self._load()
-        key = os.path.basename(key)
-        print('looking up', key)
-        return self.filename_to_names[key]
-
-filename_to_names = _lookupName()
-
+    key = os.path.basename(filename)
+    print('looking up', key)
+    return filename_to_names[key]
 
 # generic rule: compute signature
 rule compute_sig:
@@ -86,6 +82,6 @@ rule compute_sig:
     output:
         os.path.join(sigs_output_location + "{filename}.sig")
     params:
-        signame = lambda wildcards: filename_to_names[wildcards.filename]
+        signame = lambda wildcards: lookup_name(wildcards.filename)
     shell:
         "sourmash compute -k 21,31,51 --scaled=2000 {input[0]} -o {output} --merge={params.signame:q}"
