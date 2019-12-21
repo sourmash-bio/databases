@@ -32,7 +32,10 @@ rule all:
         [ make_sigfile(genomefile) for genomefile in all_files ],
         prefix+"gtdb-release89-k21.lca.json.gz",
         prefix+"gtdb-release89-k31.lca.json.gz",
-        prefix+"gtdb-release89-k51.lca.json.gz"
+        prefix+"gtdb-release89-k51.lca.json.gz",
+        prefix+"gtdb-release89-k21.sbt.json",
+        prefix+"gtdb-release89-k31.sbt.json",
+        prefix+"gtdb-release89-k51.sbt.json"
 
 rule make_lineage_csv:
     input:
@@ -59,6 +62,20 @@ rule make_lca_db:
                            --traverse-directory -C 3 \
                            gtdb-lineages.csv \
                            {params.prefix}gtdb-release89-k{params.ksize}.lca.json.gz {sigs_output_location}
+        """
+
+rule make_sbt_db:
+    input:
+        [ make_sigfile(genomefile) for genomefile in all_files ]
+    output:
+        prefix+"gtdb-release89-k{ksize}.sbt.json"
+    params:
+        ksize="{ksize}",
+        prefix=prefix
+    shell:
+        """sourmash index -k {params.ksize} \
+                           --traverse-directory \
+                           {params.prefix}gtdb-release89-k{params.ksize}.sbt.json {sigs_output_location}
         """
 
 filename_to_names = None
