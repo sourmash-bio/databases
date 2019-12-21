@@ -1,6 +1,6 @@
 #!/bin/bash -login
 #SBATCH -p bmm
-#SBATCH -J sourmash-build
+#SBATCH -J sourmash-build-gtdb
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=titus@idyll.org
 #SBATCH -t 3-0:00:00
@@ -15,7 +15,7 @@ cd /home/ctbrown/sourmash_databases/gtdb
 
 conda activate sgc
 
-snakemake -j 8 --configfile config-release89.yml
+snakemake gtdb-release89-k{31,51}.sbt.json --configfile config-release89.yml
 
 set -o nounset
 set -o errexit
