@@ -4,6 +4,7 @@ import random
 
 configfile: "config.yml"
 
+prefix = config.get('prefix', '')
 genomes_location = config['genomes_location']
 sigs_output_location = config['sigs_output_location']
 
@@ -29,7 +30,9 @@ def make_sigfile(filename):
 rule all:
     input:
         [ make_sigfile(genomefile) for genomefile in all_files ],
-        "gtdb-release89-k31.lca.json.gz"
+        prefix+"gtdb-release89-k21.lca.json.gz",
+        prefix+"gtdb-release89-k31.lca.json.gz",
+        prefix+"gtdb-release89-k51.lca.json.gz"
 
 rule make_lineage_csv:
     input:
@@ -44,15 +47,18 @@ rule make_lca_db:
         "gtdb-lineages.csv",
         [ make_sigfile(genomefile) for genomefile in all_files ]
     output:
-        "gtdb-release89-k31.lca.json.gz"
+        prefix+"gtdb-release89-k{ksize}.lca.json.gz"
+    params:
+        ksize="{ksize}",
+        prefix=prefix
     shell:
-        """sourmash lca index -k 31 \
+        """sourmash lca index -k {params.ksize} \
                            --scaled 10000 --require-taxonomy \
                            --split-identifiers \
                            --report report-gtdb-k31.txt \
                            --traverse-directory -C 3 \
                            gtdb-lineages.csv \
-                           gtdb-release89-k31.lca.json.gz {sigs_output_location}
+                           {params.prefix}gtdb-release89-k{params.ksize}.lca.json.gz {sigs_output_location}
         """
 
 filename_to_names = None
