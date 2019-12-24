@@ -88,13 +88,13 @@ def lookup_name(filename):
         with open('gtdb-lineages.csv', 'rt') as fp:
             r = csv.DictReader(fp)
             for row in r:
-                filename = row['filename']
+                fn = row['filename']
                 name = "{} {}".format(row['accession'], row['species'])
-                d[filename] = name
+                d[fn] = name
         filename_to_names = d
 
     key = os.path.basename(filename)
-    print('looking up', key)
+    print('looking up', key, filename_to_names[key])
     return filename_to_names[key]
 
 # generic rule: compute signature

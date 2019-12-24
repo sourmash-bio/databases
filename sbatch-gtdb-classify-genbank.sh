@@ -19,8 +19,8 @@ set -o nounset
 set -o errexit
 set -x
 
-#python ~/2019-sourmash-gtdb/bulk-classify-sbt-with-lca.py gtdb-k21-bacteria gtdb/new/gtdb-release89-k21.lca.json.gz outputs/trees/scaled/genbank-bacteria-d2-x1e5-k21.sbt.json
-python ~/2019-sourmash-gtdb/bulk-classify-sbt-with-lca.py gtdb-k21-archaea gtdb/new/gtdb-release89-k21.lca.json.gz outputs/trees/scaled/genbank-archaea-d2-x1e5-k21.sbt.json
+python ~/2019-sourmash-gtdb/bulk-classify-sbt-with-lca.py gtdb-scrub-k21-archaea gtdb/scrub-gtdb-release89-k21.lca.json.gz outputs/trees/scaled/genbank-archaea-d2-x1e5-k21.sbt.json
+python ~/2019-sourmash-gtdb/bulk-classify-sbt-with-lca.py gtdb-scrub-k21-bacteria gtdb/scrub-gtdb-release89-k21.lca.json.gz outputs/trees/scaled/genbank-bacteria-d2-x1e5-k21.sbt.json
 
 env | grep SLURM            # Print out values of the current jobs SLURM environment variables
 
