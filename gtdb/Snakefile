@@ -33,6 +33,9 @@ rule all:
         prefix+"gtdb-release89-k21.lca.json.gz",
         prefix+"gtdb-release89-k31.lca.json.gz",
         prefix+"gtdb-release89-k51.lca.json.gz",
+        prefix+"gtdb-release89-k21-lowrank.lca.json.gz",
+        prefix+"gtdb-release89-k31-lowrank.lca.json.gz",
+        prefix+"gtdb-release89-k51-lowrank.lca.json.gz",
         prefix+"gtdb-release89-k21.sbt.json",
         prefix+"gtdb-release89-k31.sbt.json",
         prefix+"gtdb-release89-k51.sbt.json"
@@ -50,7 +53,7 @@ rule make_lca_db:
         "gtdb-lineages.csv",
         [ make_sigfile(genomefile) for genomefile in all_files ]
     output:
-        prefix+"gtdb-release89-k{ksize}.lca.json.gz"
+        prefix+"gtdb-release89-k{ksize,[0-9]+}.lca.json.gz"
     params:
         ksize="{ksize}",
         prefix=prefix
@@ -108,3 +111,22 @@ rule compute_sig:
         signame = lambda wildcards: lookup_name(wildcards.filename)
     shell:
         "sourmash compute -k 21,31,51 --scaled=2000 {input[0]} -o {output} --merge={params.signame:q}"
+
+# extract high-rank hash values for a particular ksize
+rule extract_hash_values:
+    input:
+        prefix+"gtdb-release89-k{ksize}.lca.json.gz"
+    output:
+        prefix+"high-rank-hashes.k{ksize}.hashvals"
+    shell:
+        "~/2019-sourmash-gtdb/extract-high-rank-hashes.py {input} --lowest-rank=phylum -o {output}"
+
+# scrub LCA database of high-rank hash values
+rule scrub_lca_db:
+    input:
+        prefix+"gtdb-release89-k{ksize}.lca.json.gz",
+        prefix+"high-rank-hashes.k{ksize}.hashvals"
+    output:
+        prefix+"gtdb-release89-k{ksize}-lowrank.lca.json.gz"
+    shell:
+        "~/2019-sourmash-gtdb/scrub-lca-db.py {input[0]} {input[1]} -o {output}"
