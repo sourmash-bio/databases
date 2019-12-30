@@ -1,0 +1,5 @@
+# testing configuration for building gtdb databases
+genomes_location: database-test/
+sigs_output_location: database-test-foo/
+gtdb_taxonomy_tsv: /home/ctbrown/gtdbtk/release89/taxonomy/gtdb_taxonomy.tsv
+prefix: test-
