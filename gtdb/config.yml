@@ -3,3 +3,16 @@ genomes_location: database-test/
 sigs_output_location: database-test-foo/
 gtdb_taxonomy_tsv: /home/ctbrown/gtdbtk/release89/taxonomy/gtdb_taxonomy.tsv
 prefix: test-
+signature_ksizes:
+- 21
+- 31
+- 51
+signature_scaled: 1000
+lca_scaled:
+- 1000
+- 2000
+- 10000
+lca_ksizes:
+- 21
+- 31
+- 51

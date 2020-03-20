@@ -8,6 +8,20 @@ prefix = config.get('prefix', '')
 genomes_location = config['genomes_location']
 sigs_output_location = config['sigs_output_location']
 
+signature_scaled = int(config['signature_scaled'])
+signature_ksizes = [ int(x) for x in config['signature_ksizes'] ]
+lca_scaled = [ int(x) for x in config['lca_scaled'] ]
+lca_ksizes = [ int(x) for x in config['lca_ksizes'] ]
+
+if min(lca_scaled) < signature_scaled:
+    raise ValueError("smallest lca_scaled needs to be >= signature_scaled")
+
+for ksize in lca_ksizes:
+    if ksize not in signature_ksizes:
+        raise ValueError("signature_ksizes must include lca ksize {}".format(ksize))
+
+###
+
 all_files = []
 for root, dirs, files in os.walk(genomes_location, topdown=False):
     for name in files:
@@ -20,7 +34,7 @@ print('found {} files under {}'.format(len(all_files), genomes_location))
 random.shuffle(all_files)
 print('examples:', all_files[:5])
 
-def make_sigfile(filename):
+def make_sigfilename(filename):
     genomefile = os.path.basename(filename)
     sigfile = os.path.join(sigs_output_location, genomefile) + '.sig'
 
@@ -29,16 +43,15 @@ def make_sigfile(filename):
 # rule all: make sigs
 rule all:
     input:
-        [ make_sigfile(genomefile) for genomefile in all_files ],
-        prefix+"gtdb-release89-k21.lca.json.gz",
-        prefix+"gtdb-release89-k31.lca.json.gz",
-        prefix+"gtdb-release89-k51.lca.json.gz",
-        prefix+"gtdb-release89-k21-lowrank.lca.json.gz",
-        prefix+"gtdb-release89-k31-lowrank.lca.json.gz",
-        prefix+"gtdb-release89-k51-lowrank.lca.json.gz",
-        prefix+"gtdb-release89-k21.sbt.json",
-        prefix+"gtdb-release89-k31.sbt.json",
-        prefix+"gtdb-release89-k51.sbt.json"
+        [ make_sigfilename(genomefile) for genomefile in all_files ],
+        expand(prefix+"gtdb-release89-k{k}-{scaled}.lca.json.gz",
+               k=lca_ksizes, scaled=lca_scaled),
+#        prefix+"gtdb-release89-k21-lowrank.lca.json.gz",
+#        prefix+"gtdb-release89-k31-lowrank.lca.json.gz",
+#        prefix+"gtdb-release89-k51-lowrank.lca.json.gz",
+#        prefix+"gtdb-release89-k21.sbt.json",
+#        prefix+"gtdb-release89-k31.sbt.json",
+#        prefix+"gtdb-release89-k51.sbt.json"
 
 rule make_lineage_csv:
     input:
@@ -51,25 +64,27 @@ rule make_lineage_csv:
 rule make_lca_db:
     input:
         "gtdb-lineages.csv",
-        [ make_sigfile(genomefile) for genomefile in all_files ]
+        [ make_sigfilename(genomefile) for genomefile in all_files ]
     output:
-        prefix+"gtdb-release89-k{ksize,[0-9]+}.lca.json.gz"
+        prefix+"gtdb-release89-k{ksize,\d+}-{scaled,\d+}.lca.json.gz"
     params:
         ksize="{ksize}",
-        prefix=prefix
+        prefix=prefix,
+        scaled="{scaled}",
     shell:
         """sourmash lca index -k {params.ksize} \
-                           --scaled 10000 --require-taxonomy \
+                           --scaled {params.scaled} --require-taxonomy \
                            --split-identifiers \
                            --report report-gtdb-k31.txt \
                            --traverse-directory -C 3 \
                            gtdb-lineages.csv \
-                           {params.prefix}gtdb-release89-k{params.ksize}.lca.json.gz {sigs_output_location}
+                           {output} \
+                           {sigs_output_location}
         """
 
 rule make_sbt_db:
     input:
-        [ make_sigfile(genomefile) for genomefile in all_files ]
+        [ make_sigfilename(genomefile) for genomefile in all_files ]
     output:
         prefix+"gtdb-release89-k{ksize}.sbt.json"
     params:
@@ -104,13 +119,16 @@ def lookup_name(filename):
 rule compute_sig:
     input:
         os.path.join(genomes_location, "{filename}"),
-        'gtdb-lineages.csv'
     output:
         os.path.join(sigs_output_location + "{filename}.sig")
     params:
-        signame = lambda wildcards: lookup_name(wildcards.filename)
-    shell:
-        "sourmash compute -k 21,31,51 --scaled=2000 {input[0]} -o {output} --merge={params.signame:q}"
+        signame = lambda wildcards: lookup_name(wildcards.filename),
+        ksizes = ",".join([ str(x) for x in signature_ksizes ]),
+        scaled = signature_scaled,
+    shell: """
+        sourmash compute -k {params.ksizes} --scaled={params.scaled} \
+             {input} -o {output} --merge={params.signame:q}
+    """
 
 # extract high-rank hash values for a particular ksize
 rule extract_hash_values:
