@@ -19,9 +19,9 @@ set -o nounset
 set -o errexit
 set -x
 
-python ~/2019-sourmash-gtdb/bulk-classify-sbt-with-lca.py gtdb-k31-almeida gtdb/new/gtdb-release89-k31.lca.json.gz HMP_mags/almeida-mags-k31.sbt.json
-python ~/2019-sourmash-gtdb/bulk-classify-sbt-with-lca.py gtdb-k31-nayfach gtdb/new/gtdb-release89-k31.lca.json.gz HMP_mags/nayfach-k31.sbt.json
-python ~/2019-sourmash-gtdb/bulk-classify-sbt-with-lca.py gtdb-k31-pasolli gtdb/new/gtdb-release89-k31.lca.json.gz HMP_mags/pasolli-mags-k31.sbt.json
+python ~/2019-sourmash-gtdb/bulk-classify-sbt-with-lca.py gtdb-scrub-k31-almeida gtdb/build/gtdb-release89-k31-lowrank.lca.json.gz HMP_mags/almeida-mags-k31.sbt.json
+python ~/2019-sourmash-gtdb/bulk-classify-sbt-with-lca.py gtdb-scrub-k31-nayfach gtdb/build/gtdb-release89-k31-lowrank.lca.json.gz HMP_mags/nayfach-k31.sbt.json
+python ~/2019-sourmash-gtdb/bulk-classify-sbt-with-lca.py gtdb-scrub-k31-pasolli gtdb/build/gtdb-release89-k31-lowrank.lca.json.gz HMP_mags/pasolli-mags-k31.sbt.json
 
 env | grep SLURM            # Print out values of the current jobs SLURM environment variables
 

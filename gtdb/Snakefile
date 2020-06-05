@@ -46,6 +46,7 @@ rule all:
         [ make_sigfilename(genomefile) for genomefile in all_files ],
         expand(prefix+"gtdb-release89-k{k}-{scaled}.lca.json.gz",
                k=lca_ksizes, scaled=lca_scaled),
+        expand(prefix+"gtdb-release89-k{k}.sbt.zip", k=31)
 #        prefix+"gtdb-release89-k21-lowrank.lca.json.gz",
 #        prefix+"gtdb-release89-k31-lowrank.lca.json.gz",
 #        prefix+"gtdb-release89-k51-lowrank.lca.json.gz",
@@ -58,6 +59,7 @@ rule make_lineage_csv:
         config['gtdb_taxonomy_tsv']
     output:
         'gtdb-lineages.csv'
+    conda: 'env-sourmash.yml'
     shell:
         '../update-gtdb-taxonomy.py {input} -o {output}'
 
@@ -71,6 +73,7 @@ rule make_lca_db:
         ksize="{ksize}",
         prefix=prefix,
         scaled="{scaled}",
+    conda: 'env-sourmash.yml'
     shell:
         """sourmash lca index -k {params.ksize} \
                            --scaled {params.scaled} --require-taxonomy \
@@ -86,14 +89,15 @@ rule make_sbt_db:
     input:
         [ make_sigfilename(genomefile) for genomefile in all_files ]
     output:
-        prefix+"gtdb-release89-k{ksize}.sbt.json"
+        prefix+"gtdb-release89-k{ksize}.sbt.zip"
     params:
         ksize="{ksize}",
         prefix=prefix
+    conda: 'env-sourmash.yml'
     shell:
         """sourmash index -k {params.ksize} \
                            --traverse-directory \
-                           {params.prefix}gtdb-release89-k{params.ksize}.sbt.json {sigs_output_location}
+                           {output} {sigs_output_location}
         """
 
 filename_to_names = None
@@ -125,6 +129,7 @@ rule compute_sig:
         signame = lambda wildcards: lookup_name(wildcards.filename),
         ksizes = ",".join([ str(x) for x in signature_ksizes ]),
         scaled = signature_scaled,
+    conda: 'env-sourmash.yml'
     shell: """
         sourmash compute -k {params.ksizes} --scaled={params.scaled} \
              {input} -o {output} --merge={params.signame:q}
@@ -136,6 +141,7 @@ rule extract_hash_values:
         prefix+"gtdb-release89-k{ksize}.lca.json.gz"
     output:
         prefix+"high-rank-hashes.k{ksize}.hashvals"
+    conda: 'env-sourmash.yml'
     shell:
         "~/2019-sourmash-gtdb/extract-high-rank-hashes.py {input} --lowest-rank=phylum -o {output}"
 
@@ -146,5 +152,6 @@ rule scrub_lca_db:
         prefix+"high-rank-hashes.k{ksize}.hashvals"
     output:
         prefix+"gtdb-release89-k{ksize}-lowrank.lca.json.gz"
+    conda: 'env-sourmash.yml'
     shell:
         "~/2019-sourmash-gtdb/scrub-lca-db.py {input[0]} {input[1]} -o {output}"

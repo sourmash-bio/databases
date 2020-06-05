@@ -15,7 +15,7 @@ cd /home/ctbrown/sourmash_databases/gtdb
 
 conda activate sgc
 
-snakemake --configfile config-release89.yml -p
+snakemake --configfile config-release89.yml -p --use-conda
 
 set -o nounset
 set -o errexit
