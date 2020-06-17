@@ -35,7 +35,7 @@ def main():
     for ident, tax in gtdb_ident_to_tax.items():
 
         acc = ident.split('.')[0]
-        filename = ident + '_genomic.fna.gz'
+        filename = ident + '_protein.faa.gz'
         row = [acc,filename] + tax.split(';')
 
         w.writerow(row)

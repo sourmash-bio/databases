@@ -25,7 +25,7 @@ for ksize in lca_ksizes:
 all_files = []
 for root, dirs, files in os.walk(genomes_location, topdown=False):
     for name in files:
-        if name.endswith('_genomic.fna.gz'):
+        if name.endswith('_protein.faa.gz'):
             filename = os.path.join(root, name)
             if filename.startswith('./'): filename = filename[2:]
             all_files.append(filename)
@@ -78,6 +78,7 @@ rule make_lca_db:
         """sourmash lca index -k {params.ksize} \
                            --scaled {params.scaled} --require-taxonomy \
                            --split-identifiers \
+                           --dayhoff \
                            --report report-gtdb-k31.txt \
                            --traverse-directory -C 3 \
                            gtdb-lineages.csv \
@@ -103,6 +104,7 @@ rule make_sbt_db:
 filename_to_names = None
 def lookup_name(filename):
     global filename_to_names
+    print('XXX', filename)
 
     if filename_to_names is None:
         import csv
@@ -132,7 +134,7 @@ rule compute_sig:
     conda: 'env-sourmash.yml'
     shell: """
         sourmash compute -k {params.ksizes} --scaled={params.scaled} \
-             {input} -o {output} --merge={params.signame:q}
+             {input} -o {output} --dayhoff --no-dna --merge={params.signame:q}
     """
 
 # extract high-rank hash values for a particular ksize
