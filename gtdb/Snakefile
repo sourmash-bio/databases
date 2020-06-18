@@ -134,7 +134,7 @@ rule compute_sig:
     conda: 'env-sourmash.yml'
     shell: """
         sourmash compute -k {params.ksizes} --scaled={params.scaled} \
-             {input} -o {output} --dayhoff --no-dna --merge={params.signame:q}
+             {input} -o {output} --dayhoff --no-dna --input-is-protein --merge={params.signame:q}
     """
 
 # extract high-rank hash values for a particular ksize
