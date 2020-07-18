@@ -12,8 +12,8 @@ domains:
 #- metagenomes
 #- other
 
-# top level directory precomputed signatures
-sig_location: /data/wort/wort-genomes/sigs
+# top level directory for precomputed signatures
+sig_store: /data/wort/wort-genomes/sigs
 
 # ksizes to build the databases for
 db_ksizes:
@@ -24,10 +24,10 @@ db_ksizes:
 # options: genbank, refseq
 db:
 - refseq
-#- genbank
+- genbank
 
 # bloom filter sizes for SBTs
 bfsize:
-- 1e4
-- 1e5
 - 1e6
+#- 1e5
+#- 1e4

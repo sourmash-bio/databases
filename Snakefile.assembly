@@ -3,21 +3,23 @@ import random
 
 configfile: "config.assembly.yml"
 
-# load in list of genomes by domain
-DOMAINS=config['domains']
-
-###
-
 # rule 'all' builds specific SBTs.
 rule all:
   input:
     expand("outputs/sbt/{db}-{domain}-x{bfsize}-k{ksize}.sbt.zip", db=config['db'], ksize=config['db_ksizes'], domain=config['domains'], bfsize=config['bfsize']),
 #    expand("outputs/lca/{db}-{domain}-k{ksize}-scaled10k.lca.json.gz", db=config['db'], domain=config['domains'], ksize=config['db_ksizes'])
 
+
+def sigs_in_catalog(w):
+    with checkpoints.catalog.get(domain=w.domain, db=w.db).output[0].open('r') as f:
+        return [l.strip() for l in f.readlines()]
+
+
 rule sbt:
   output: "outputs/{index}/{db}-{domain}-x{bfsize}-k{ksize}.sbt.zip"
   input:
-    catalog = "outputs/catalog/{domain}/{db}.txt"
+    catalog = "outputs/catalog/{domain}/{db}.txt",
+    sigs = sigs_in_catalog
   params:
     ksize="{ksize}",
     db="{db}",
@@ -62,14 +64,16 @@ rule download_catalog:
     date +%Y%m%d > {output.generated}
   """
 
-rule catalog:
+checkpoint catalog:
   output: "outputs/catalog/{domain}/{db}.txt"
   input: "outputs/assembly_stats/{domain}/assembly_summary_{db}.txt.gz"
+  params:
+    domain = "{domain}"
   run:
       import csv
       import gzip
 
-      basedir = config['sig_location']
+      basedir = config['sig_store']
 
       with gzip.open(input[0], 'rt') as fp:
           fp.readline() # skip first line
@@ -79,4 +83,78 @@ rule catalog:
           with open(output[0], 'w') as fout:
               for row in data:
                   accession = row['assembly_accession']
-                  fout.write(f"{basedir}/{accession}.sig\n")
+                  path = f"{basedir}/{accession}.sig"
+                  if not os.path.exists(path):
+                      # let's calculate locally
+                      path = f"outputs/sigs/{params.domain}/{accession}.sig"
+                  fout.write(path + '\n')
+
+
+## Rules for computing signatures not found in config['sig_store']
+
+def url_for_accession(accession):
+    db, acc = accession.split("_")
+    number, version = acc.split(".")
+    number = "/".join([number[pos:pos + 3] for pos in range(0, len(number), 3)])
+    url = f"ftp://ftp.ncbi.nlm.nih.gov/genomes/all/{db}/{number}"
+
+    all_names = shell(f"curl -l {url}/", read=True).split('\n')
+
+    full_name = None
+    for name in all_names:
+        db_, acc_, _ = name.split("_")
+        if db_ == db and acc == acc_:
+            full_name = name
+            break
+
+    url = "https" + url[3:]
+    return f"{url}/{full_name}/{full_name}_genomic.fna.gz"
+
+    # TODO: alternative is read assembly_summary for asm_name
+    #return f"{url}/{accession}_{asm_name}"
+
+
+def name_for_accession(domain, accession):
+    import csv
+    import gzip
+
+    if accession[:3] == "GCA":
+        db = "genbank"
+    else:
+        db = "refseq"
+    summary = f"outputs/assembly_stats/{domain}/assembly_summary_{db}.txt.gz"
+
+    with gzip.open(summary, 'rt') as fp:
+        fp.readline() # skip first line
+        fp.read(2) # skip initial comment in header
+        data = csv.DictReader(fp, delimiter='\t')
+        for row in data:
+            if row['assembly_accession'] == accession:
+                name_parts = [row["assembly_accession"], " ", row['organism_name']]
+                if row['infraspecific_name']:
+                    name_parts += [" ", row['infraspecific_name']]
+                name_parts += [', ', row['asm_name']]
+                return "".join(name_parts)
+        # If we get here, then the accession wasn't in the summary.
+        raise ValueError("Accession not in this summary file!")
+
+
+# TODO: fix the input, need to calculate genbank/refseq from accession
+rule compute:
+  output: "outputs/sigs/{domain}/{accession}.sig"
+  input:
+    genbank="outputs/assembly_stats/{domain}/assembly_summary_genbank.txt.gz",
+    refseq="outputs/assembly_stats/{domain}/assembly_summary_refseq.txt.gz",
+  params:
+    ksizes=lambda w: ",".join(str(k) for k in config["db_ksizes"]),
+    scaled=1000,
+    name=lambda w: name_for_accession(w.domain, w.accession),
+    url_path=lambda w: url_for_accession(w.accession),
+  shell: """
+    sourmash compute -k {params.ksizes} \
+      --scaled {params.scaled} \
+      --track-abundance \
+      --name {params.name:q} \
+      -o {output} \
+      <(curl {params.url_path} | zcat)
+  """

@@ -7,3 +7,4 @@ dependencies:
   - python=3.7
   - snakemake-minimal=5.20.1
   - sourmash-minimal>=3.4,<4
+  - curl
