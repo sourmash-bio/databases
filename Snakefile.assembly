@@ -1,0 +1,82 @@
+import os.path
+import random
+
+configfile: "config.assembly.yml"
+
+# load in list of genomes by domain
+DOMAINS=config['domains']
+
+###
+
+# rule 'all' builds specific SBTs.
+rule all:
+  input:
+    expand("outputs/sbt/{db}-{domain}-x{bfsize}-k{ksize}.sbt.zip", db=config['db'], ksize=config['db_ksizes'], domain=config['domains'], bfsize=config['bfsize']),
+#    expand("outputs/lca/{db}-{domain}-k{ksize}-scaled10k.lca.json.gz", db=config['db'], domain=config['domains'], ksize=config['db_ksizes'])
+
+rule sbt:
+  output: "outputs/{index}/{db}-{domain}-x{bfsize}-k{ksize}.sbt.zip"
+  input:
+    catalog = "outputs/catalog/{domain}/{db}.txt"
+  params:
+    ksize="{ksize}",
+    db="{db}",
+    domain="{domain}",
+    bfsize="{bfsize}",
+  shell: """
+    sourmash index \
+      -k {params.ksize} \
+      -x {params.bfsize} \
+      --from-file <(tail +1 {input.catalog}) \
+      {output} $(head -1 {input.catalog})
+    """
+
+rule lca:
+  output: "outputs/lca/{db}-{domain}-k{ksize}-scaled10k.lca.json.gz",
+  input:
+    lineage="domain-{domain}.acc.lineages.csv"
+  params:
+    ksize="{ksize}",
+    db="{db}",
+    domain="{domain}",
+    config="{config}"
+  shell: """
+    sourmash lca index \
+      -k {params.ksize} \
+      --scaled 10000 \
+      --report report-lca-{params.db}-{params.domain}-{params.ksize}.txt \
+      --traverse-directory -C 3 --split-identifiers \
+      domain-{params.domain}.acc.lineages.csv \
+      {output} outputs/sigs/{params.config}/{params.db}/{params.domain}
+  """
+
+rule download_catalog:
+  output:
+    catalog="outputs/assembly_stats/{domain}/assembly_summary_{db}.txt.gz",
+    generated="outputs/assembly_stats/{domain}/assembly_summary_{db}.timestamp",
+  params:
+    domain="{domain}",
+    db="{db}"
+  shell: """
+    wget --header='Accept-Encoding: gzip' -O {output.catalog} https://ftp.ncbi.nlm.nih.gov/genomes/{params.db}/{params.domain}/assembly_summary.txt
+    date +%Y%m%d > {output.generated}
+  """
+
+rule catalog:
+  output: "outputs/catalog/{domain}/{db}.txt"
+  input: "outputs/assembly_stats/{domain}/assembly_summary_{db}.txt.gz"
+  run:
+      import csv
+      import gzip
+
+      basedir = config['sig_location']
+
+      with gzip.open(input[0], 'rt') as fp:
+          fp.readline() # skip first line
+          fp.read(2) # skip initial comment in header
+          data = csv.DictReader(fp, delimiter='\t')
+
+          with open(output[0], 'w') as fout:
+              for row in data:
+                  accession = row['assembly_accession']
+                  fout.write(f"{basedir}/{accession}.sig\n")
