@@ -37,7 +37,6 @@ rule sbt:
 rule lca:
   output:
     lca = "outputs/lca/{db}-{domain}-k{ksize}-scaled10k.lca.json.gz",
-    report = "outputs/lca/reports/{db}-{domain}-k{ksize}-scaled10k.txt"
   input:
     lineage = "outputs/lca/lineages/{domain}_{db}_lineage.csv",
     catalog = "outputs/catalog/{domain}/{db}.txt",
@@ -51,7 +50,7 @@ rule lca:
     sourmash lca index \
       -k {params.ksize} \
       --scaled 10000 \
-      --report {output.report} \
+      --report outputs/lca/reports/{params.db}-{params.domain}-k{params.ksize}-scaled10k.txt \
       -f -C 3 --split-identifiers \
       --from-file <(tail +2 {input.catalog}) \
       {input.lineage} \
@@ -93,14 +92,15 @@ checkpoint catalog:
                   accession = row['assembly_accession']
                   path = f"{basedir}/{accession}.sig"
                   if not os.path.exists(path):
-                      # TODO: check if we can download and compute it
+                      # check if we can download and compute it
                       try:
                           url = url_for_accession(accession)
                       except ValueError:
                           # TODO: log this somehow
                           print(f"can't find URL for {accession}")
-                          # TODO: decide if an older version should be used
-                          #       logic needs to be implemented here
+
+                          # TODO: if we decide an older version should be used
+                          #       then logic needs to be implemented here
                           continue
 
                       # if URL is valid, let's calculate locally
@@ -135,9 +135,6 @@ def url_for_accession(accession):
     url = "https" + url[3:]
     return f"{url}/{full_name}/{full_name}_genomic.fna.gz"
 
-    # TODO: alternative is read assembly_summary for asm_name
-    #return f"{url}/{accession}_{asm_name}"
-
 
 def name_for_accession(domain, accession):
     import csv
@@ -164,12 +161,18 @@ def name_for_accession(domain, accession):
         raise ValueError("Accession not in this summary file!")
 
 
-# TODO: fix the input, need to calculate genbank/refseq from accession
+def choose_summary(w):
+    if w.accession.startswith("GCF"):
+        return f"outputs/assembly_stats/{w.domain}/assembly_summary_refseq.txt.gz",
+    elif w.accession.startswith("GCA"):
+        return f"outputs/assembly_stats/{w.domain}/assembly_summary_genbank.txt.gz",
+
+    raise ValueError(f"Couldn't decide assembly summary with {w.accession}")
+
+
 rule compute:
   output: "outputs/sigs/{domain}/{accession}.sig"
-  input:
-    genbank="outputs/assembly_stats/{domain}/assembly_summary_genbank.txt.gz",
-    refseq="outputs/assembly_stats/{domain}/assembly_summary_refseq.txt.gz",
+  input: choose_summary
   params:
     ksizes=lambda w: ",".join(str(k) for k in config["db_ksizes"]),
     scaled=1000,
@@ -186,6 +189,7 @@ rule compute:
 
 ## TODO: write rule to validate SBTs
 # - check that all sigs in catalog are in the SBT too
+# - maybe run some searches?
 
 ### Prepare LCA lineages
 
