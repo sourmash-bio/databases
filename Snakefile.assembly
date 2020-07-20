@@ -15,7 +15,7 @@ def sigs_in_catalog(w):
 
 
 rule sbt:
-  output: "outputs/{index}/{db}-{domain}-x{bfsize}-k{ksize}.sbt.zip"
+  output: "outputs/sbt/{db}-{domain}-x{bfsize}-k{ksize}.sbt.zip"
   input:
     catalog = "outputs/catalog/{domain}/{db}.txt",
     sigs = sigs_in_catalog
@@ -24,6 +24,7 @@ rule sbt:
     db="{db}",
     domain="{domain}",
     bfsize="{bfsize}",
+  benchmark: "benchmark/sbt/{db}-{domain}-x{bfsize}-k{ksize}.txt"
   shell: """
     sourmash index \
       -k {params.ksize} \
@@ -45,6 +46,7 @@ rule lca:
     ksize="{ksize}",
     db="{db}",
     domain="{domain}",
+  benchmark: "benchmark/lca/{db}-{domain}-k{ksize}.txt"
   shell: """
     sourmash lca index \
       -k {params.ksize} \
