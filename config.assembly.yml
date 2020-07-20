@@ -1,7 +1,7 @@
 domains:
 - fungi
 - archaea
-#- bacteria
+- bacteria
 - viral
 #- invertebrate
 #- plant
@@ -9,8 +9,9 @@ domains:
 #- vertebrate_mammalian
 #- vertebrate_other
 ## only for genbank
-#- metagenomes
 #- other
+## does it even make sense to make an SBT of the genbank metagenomes?
+#- metagenomes
 
 # top level directory for precomputed signatures
 sig_store: /data/wort/wort-genomes/sigs
@@ -29,5 +30,5 @@ db:
 # bloom filter sizes for SBTs
 bfsize:
 - 1e6
-#- 1e5
-#- 1e4
+- 1e5
+- 1e4

@@ -3,11 +3,10 @@ import random
 
 configfile: "config.assembly.yml"
 
-# rule 'all' builds specific SBTs.
 rule all:
   input:
     expand("outputs/sbt/{db}-{domain}-x{bfsize}-k{ksize}.sbt.zip", db=config['db'], ksize=config['db_ksizes'], domain=config['domains'], bfsize=config['bfsize']),
-#    expand("outputs/lca/{db}-{domain}-k{ksize}-scaled10k.lca.json.gz", db=config['db'], domain=config['domains'], ksize=config['db_ksizes'])
+    expand("outputs/lca/{db}-{domain}-k{ksize}-scaled10k.lca.json.gz", db=config['db'], domain=config['domains'], ksize=config['db_ksizes'])
 
 
 def sigs_in_catalog(w):
@@ -29,28 +28,35 @@ rule sbt:
     sourmash index \
       -k {params.ksize} \
       -x {params.bfsize} \
-      --from-file <(tail +1 {input.catalog}) \
+      --from-file <(tail +2 {input.catalog}) \
       {output} $(head -1 {input.catalog})
     """
 
+
 rule lca:
-  output: "outputs/lca/{db}-{domain}-k{ksize}-scaled10k.lca.json.gz",
+  output:
+    lca = "outputs/lca/{db}-{domain}-k{ksize}-scaled10k.lca.json.gz",
+    report = "outputs/lca/reports/{db}-{domain}-k{ksize}-scaled10k.txt"
   input:
-    lineage="domain-{domain}.acc.lineages.csv"
+    lineage = "outputs/lca/lineages/{domain}_{db}_lineage.csv",
+    catalog = "outputs/catalog/{domain}/{db}.txt",
+    sigs = sigs_in_catalog
   params:
     ksize="{ksize}",
     db="{db}",
     domain="{domain}",
-    config="{config}"
   shell: """
     sourmash lca index \
       -k {params.ksize} \
       --scaled 10000 \
-      --report report-lca-{params.db}-{params.domain}-{params.ksize}.txt \
-      --traverse-directory -C 3 --split-identifiers \
-      domain-{params.domain}.acc.lineages.csv \
-      {output} outputs/sigs/{params.config}/{params.db}/{params.domain}
+      --report {output.report} \
+      -f -C 3 --split-identifiers \
+      --from-file <(tail +2 {input.catalog}) \
+      {input.lineage} \
+      {output.lca} $(head -1 {input.catalog})
   """
+
+## Rules for building signature catalogs for each index
 
 rule download_catalog:
   output:
@@ -85,8 +91,20 @@ checkpoint catalog:
                   accession = row['assembly_accession']
                   path = f"{basedir}/{accession}.sig"
                   if not os.path.exists(path):
-                      # let's calculate locally
+                      # TODO: check if we can download and compute it
+                      try:
+                          url = url_for_accession(accession)
+                      except ValueError:
+                          # TODO: log this somehow
+                          print(f"can't find URL for {accession}")
+                          # TODO: decide if an older version should be used
+                          #       logic needs to be implemented here
+                          continue
+
+                      # if URL is valid, let's calculate locally
                       path = f"outputs/sigs/{params.domain}/{accession}.sig"
+
+                  # either sig exists in sig_store, or can be computed
                   fout.write(path + '\n')
 
 
@@ -98,11 +116,16 @@ def url_for_accession(accession):
     number = "/".join([number[pos:pos + 3] for pos in range(0, len(number), 3)])
     url = f"ftp://ftp.ncbi.nlm.nih.gov/genomes/all/{db}/{number}"
 
-    all_names = shell(f"curl -l {url}/", read=True).split('\n')
+    from subprocess import CalledProcessError
+    try:
+        all_names = shell(f"curl -s -l {url}/", read=True).split('\n')
+    except CalledProcessError as e:
+        # TODO: might check here if it was a 404 or 5xx, assuming 404
+        raise ValueError(f"Can't find URL for {accession}, tried {url}")
 
     full_name = None
     for name in all_names:
-        db_, acc_, _ = name.split("_")
+        db_, acc_, *_ = name.split("_")
         if db_ == db and acc == acc_:
             full_name = name
             break
@@ -156,5 +179,42 @@ rule compute:
       --track-abundance \
       --name {params.name:q} \
       -o {output} \
-      <(curl {params.url_path} | zcat)
+      <(curl -s {params.url_path} | zcat)
+  """
+
+## TODO: write rule to validate SBTs
+# - check that all sigs in catalog are in the SBT too
+
+### Prepare LCA lineages
+
+rule download_lca_scripts:
+  output:
+    make_lineage_csv = "scripts/make-lineage-csv.py",
+    taxdump_utils = "scripts/ncbi_taxdump_utils.py",
+  shell: """
+    wget -qO {output.taxdump_utils} https://raw.githubusercontent.com/dib-lab/2018-ncbi-lineages/63e8dc784af092293362f2e8e671ae03d1a84d1d/ncbi_taxdump_utils.py
+    chmod +x {output.taxdump_utils}
+  """
+
+rule lca_lineage_csv:
+  output: "outputs/lca/lineages/{domain}_{db}_lineage.csv",
+  input:
+    summary = "outputs/assembly_stats/{domain}/assembly_summary_{db}.txt.gz",
+    make_acc_taxid_mapping = "scripts/make-acc-taxid-mapping.py",
+    make_lineage_csv = "scripts/make-lineage-csv.py",
+    taxonomy = expand("outputs/taxonomy/{file}.dmp", file=('nodes', 'names')),
+  shell: """
+    {input.make_lineage_csv} {input.taxonomy} <({input.make_acc_taxid_mapping} {input.summary}) -o {output}
+  """
+
+rule download_taxonomy:
+  output:
+    names = 'outputs/taxonomy/names.dmp',
+    nodes = 'outputs/taxonomy/nodes.dmp',
+    generated="outputs/taxonomy/timestamp",
+  shell: """
+    (cd outputs/taxonomy && \
+    wget https://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz && \
+    tar xf taxdump.tar.gz)
+    date +%Y%m%d > {output.generated}
   """
