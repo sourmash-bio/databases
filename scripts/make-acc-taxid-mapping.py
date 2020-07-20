@@ -11,6 +11,7 @@ import gzip
 
 def main():
     p = argparse.ArgumentParser()
+    p.add_argument('--strip-version', action='store_true')
     p.add_argument('summary')
     args = p.parse_args()
 
@@ -19,9 +20,11 @@ def main():
         fp.read(2) # skip initial comment in header
         data = csv.DictReader(fp, delimiter='\t')
         for row in data:
-            # --split-identifiers in `sourmash lca index` doesn't behave
-            # well with version, so remove it
-            accession = row['assembly_accession'].split('.')[0]
+            accession = row['assembly_accession']
+            if args.strip_version:
+                # --split-identifiers in `sourmash lca index` doesn't behave
+                # well with version, so remove it
+                accession = accession.split('.')[0]
             taxid = row['taxid']
             print(f'{accession},{taxid}')
 

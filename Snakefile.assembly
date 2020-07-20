@@ -6,7 +6,8 @@ configfile: "config.assembly.yml"
 rule all:
   input:
     expand("outputs/sbt/{db}-{domain}-x{bfsize}-k{ksize}.sbt.zip", db=config['db'], ksize=config['db_ksizes'], domain=config['domains'], bfsize=config['bfsize']),
-    expand("outputs/lca/{db}-{domain}-k{ksize}-scaled10k.lca.json.gz", db=config['db'], domain=config['domains'], ksize=config['db_ksizes'])
+    expand("outputs/lca/{db}-{domain}-k{ksize}-scaled10k.lca.json.gz", db=config['db'], domain=config['domains'], ksize=config['db_ksizes']),
+    expand("outputs/taxid4index/{db}-{domain}.csv", db=config['db'], domain=config['domains'])
 
 
 def sigs_in_catalog(w):
@@ -210,7 +211,17 @@ rule lca_lineage_csv:
     make_lineage_csv = "scripts/make-lineage-csv.py",
     taxonomy = expand("outputs/taxonomy/{file}.dmp", file=('nodes', 'names')),
   shell: """
-    {input.make_lineage_csv} {input.taxonomy} <({input.make_acc_taxid_mapping} {input.summary}) -o {output}
+    {input.make_lineage_csv} {input.taxonomy} \
+        <({input.make_acc_taxid_mapping} --strip-version {input.summary}) -o {output}
+  """
+
+rule taxid4index:
+  output: "outputs/taxid4index/{db}-{domain}.csv",
+  input:
+    summary = "outputs/assembly_stats/{domain}/assembly_summary_{db}.txt.gz",
+    make_acc_taxid_mapping = "scripts/make-acc-taxid-mapping.py",
+  shell: """
+    {input.make_acc_taxid_mapping} {input.summary} > {output}
   """
 
 rule download_taxonomy:
