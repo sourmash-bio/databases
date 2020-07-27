@@ -48,6 +48,8 @@ rule lca:
     domain="{domain}",
   benchmark: "benchmark/lca/{db}-{domain}-k{ksize}.txt"
   shell: """
+    mkdir -p outputs/lca/reports/
+
     sourmash lca index \
       -k {params.ksize} \
       --scaled 10000 \
@@ -200,7 +202,8 @@ rule download_lca_scripts:
     taxdump_utils = "scripts/ncbi_taxdump_utils.py",
   shell: """
     wget -qO {output.taxdump_utils} https://raw.githubusercontent.com/dib-lab/2018-ncbi-lineages/63e8dc784af092293362f2e8e671ae03d1a84d1d/ncbi_taxdump_utils.py
-    chmod +x {output.taxdump_utils}
+    wget -qO {output.make_lineage_csv} https://raw.githubusercontent.com/dib-lab/2018-ncbi-lineages/63e8dc784af092293362f2e8e671ae03d1a84d1d/make-lineage-csv.py
+    chmod +x {output.make_lineage_csv}
   """
 
 rule lca_lineage_csv:
