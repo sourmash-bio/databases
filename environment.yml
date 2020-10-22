@@ -1,0 +1,9 @@
+name: sourmash_databases
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.8
+  - snakemake=5.26.1
+  - pandas=1.1.3

@@ -1,0 +1,12 @@
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python>=3.7
+  - pytest
+  - rust
+  - pip
+  - pip:
+    - git+https://github.com/dib-lab/sourmash@latest
+    - dendropy==4.4.0

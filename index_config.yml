@@ -1,0 +1,24 @@
+# location for all generated files
+basename: gtdb-r95
+
+output_dir: gtdb-r95
+
+genomes_csv: gtdb-r95/gtdb-r95-reps.lineages.genome-filenames.csv
+proteins_csv: gtdb-r95/gtdb-r95-reps.lineages.protein-filenames.csv
+
+# directory in which genome/protein filenames live
+data_dir: /group/ctbrowngrp/gtdb-r95
+
+alphabet_info:
+  nucleotide:
+    ksizes: [21,31,51]
+    scaled: 2000
+  protein:
+    ksizes: [7,10]
+    scaled: 200
+  dayhoff:
+    ksizes: [16]
+    scaled: 200
+  hp:
+    ksizes: [42]
+    scaled: 200
