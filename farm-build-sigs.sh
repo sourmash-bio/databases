@@ -3,7 +3,7 @@
 #SBATCH -J sigs-gtdb
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=ntpierce@ucdavis.edu
-#SBATCH --chdir /group/ctbrowngrp/sourmash_databases
+#SBATCH --chdir /home/ntpierce/sourmash_databases
 #SBATCH -t 3-0:00:00
 #SBATCH -N 1
 #SBATCH -n 1

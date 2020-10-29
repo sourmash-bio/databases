@@ -46,7 +46,7 @@ elif any(alpha in ["protein", "dayhoff", "hp"] for alpha in alphabet_info):
 
 onstart:
     print("------------------------------")
-    print("    Build SBTs from csv")
+    print("   Index from lineages csv")
     print("------------------------------")
 
 onsuccess:
@@ -56,7 +56,7 @@ onerror:
     print("Alas!\n")
 
 alphabet_info = config["alphabet_info"]
-sbt_info= []
+index_info= []
 
 wildcard_constraints:
     alphabet="\w+",
@@ -64,14 +64,15 @@ wildcard_constraints:
 
 for alphabet, info in alphabet_info.items():
     aks = expand("{alpha}-k{ksize}-scaled{scaled}", alpha=alphabet, ksize=info["ksizes"], scaled=info["scaled"])
-    sbt_info.extend(aks)
+    index_info.extend(aks)
 
 
 rule all:
     input: 
         expand(os.path.join(out_dir, "dna-input", "{basename}.signatures.txt"), basename=basename),
         expand(os.path.join(out_dir, "protein-input", "{basename}.signatures.txt"), basename=basename),
-        expand(os.path.join(out_dir, "index", "{basename}.{sbtinfo}.sbt.zip"), basename=basename, sbtinfo=sbt_info),
+        expand(os.path.join(out_dir, "index", "{basename}.{idx_info}.sbt.zip"), basename=basename, idx_info=index_info),
+        expand(os.path.join(out_dir, "index", "{basename}.{idx_info}.lca.json.gz"), basename=basename, idx_info=index_info),
 
 
 ## sketching rules ##
@@ -160,8 +161,8 @@ rule index_sbt:
     output: os.path.join(out_dir, "index", "{basename}.{alphabet}-k{ksize}-scaled{scaled}.sbt.zip"),
     threads: 1
     params:
-        alpha_cmd = lambda w: alphabet_defaults[w.alphabet]["alpha_cmd"],
-        ksize = lambda w: int(w.ksize)*int(alphabet_defaults[w.alphabet]["ksize_multiplier"]),
+        alpha_cmd = lambda w: config["alphabet_defaults"][w.alphabet]["alpha_cmd"],
+        ksize = lambda w: int(w.ksize)*int(config["alphabet_defaults"][w.alphabet]["ksize_multiplier"]),
     resources:
         mem_mb=lambda wildcards, attempt: attempt *50000,
         runtime=6000,
@@ -173,4 +174,29 @@ rule index_sbt:
         sourmash index {output} --ksize {params.ksize} \
         --scaled {wildcards.scaled} {params.alpha_cmd}  \
         --from-file {input}  2> {log}
+        """
+
+rule index_lca:
+    input:
+        sigfile=get_siglist,
+        lineages= config["genomes_csv"]
+    output: os.path.join(out_dir, "index", "{basename}.{alphabet}-k{ksize}-scaled{scaled}.lca.json.gz"),
+    threads: 1
+    params:
+        alpha_cmd = lambda w: config["alphabet_defaults"][w.alphabet]["alpha_cmd"],
+        ksize = lambda w: int(w.ksize)*int(config["alphabet_defaults"][w.alphabet]["ksize_multiplier"]),
+        report = lambda w: os.path.join(out_dir,"index", f"{w.basename}.{w.alphabet}-k{w.ksize}-scaled{w.scaled}.lca.report"),
+    resources:
+        mem_mb=lambda wildcards, attempt: attempt *100000,
+        runtime=6000,
+    log: os.path.join(logs_dir, "index", "{basename}.{alphabet}-k{ksize}-scaled{scaled}.index-lca.log")
+    benchmark: os.path.join(benchmarks_dir, "index", "{basename}.{alphabet}-k{ksize}-scaled{scaled}.index-lca.benchmark")
+    conda: "envs/sourmash-dev.yml"
+    shell:
+        """
+        sourmash lca index --ksize {params.ksize} \
+          --scaled {wildcards.scaled} --from-file {input.sigfile} \
+          --split-identifiers --start-column 4 \
+          --require-taxonomy --report {params.report} \
+          {params.alpha_cmd} {input.lineages} {output} 2> {log} \
         """
