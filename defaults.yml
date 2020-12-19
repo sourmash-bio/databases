@@ -1,29 +1,31 @@
 output_dir: gtdb-databases
 basename: gtdb-r95
 
+dna_input: True
+protein_input: False
 # defaults for each alphabet 
 alphabet_defaults:
   nucleotide: 
     ksizes: [21,31,51]
-    scaled: 2000
+    scaled: [2000]
     alpha_cmd: "--dna"
     moltype: "dna"
     ksize_multiplier: 1
   protein:
     ksizes: [11]
-    scaled: 100
+    scaled: [100]
     alpha_cmd: "--protein"
     moltype: "protein"
     ksize_multiplier: 3
   dayhoff:
     ksizes: [19]
-    scaled: 100
+    scaled: [100]
     alpha_cmd: "--dayhoff"
     moltype: "dayhoff"
     ksize_multiplier: 3
   hp:
     ksizes: [33]
-    scaled: 100
+    scaled: [100]
     alpha_cmd: "--hp"
     moltype: "hp"
     ksize_multiplier: 3
