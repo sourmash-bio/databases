@@ -119,10 +119,10 @@ def build_signame_cmd(sample, input_type):
             signame = genome_info.at[sample, 'signame']
         elif input_type == "protein":
             sgname = protein_info.at[sample, 'signame'],
-        signame_cmd =  f" --name {signame:q}"
+        signame_cmd =  f" --name {signame:q} "
         return signame_cmd
     else:
-        return ""
+        return " --singleton "
 
 rule sourmash_sketch_nucleotide_input:
     input: 
@@ -132,7 +132,6 @@ rule sourmash_sketch_nucleotide_input:
     params:
         sketch_params = build_sketch_params("nucleotide"),
         signame_cmd = lambda w: build_signame_cmd(w.sample, "nucleotide"),
-        singleton_cmd = " --singleton " if singleton else ""
     threads: 1
     resources:
         mem_mb=lambda wildcards, attempt: attempt *1000,
@@ -143,7 +142,7 @@ rule sourmash_sketch_nucleotide_input:
     conda: "envs/sourmash-dev.yml"
     shell:
         """
-        sourmash sketch dna -p {params.sketch_params} -o {output} {params.signame_cmd} {params.singleton_cmd} {input}  2> {log}
+        sourmash sketch dna -p {params.sketch_params} {params.signame_cmd} -o {output} {input}  2> {log}
         """
     
 if protein_input:
@@ -165,7 +164,7 @@ if protein_input:
         conda: "envs/sourmash-dev.yml"
         shell:
             """
-            sourmash sketch protein {params.sketch_params} -o {output} {params.signame_cmd} {params.singleton_cmd} {input} 2> {log}
+            sourmash sketch protein {params.sketch_params} {params.signame_cmd} -o {output} {input} 2> {log}
             """
 
 localrules: signames_to_file
