@@ -40,7 +40,10 @@ def read_samples(samples_file, data_dir):
 # figure out inputs
 dna_input = config.get("dna_input", True)
 protein_input = config.get("protein_input", False)
+sketch_mem =1000
 singleton = config.get("singleton", False)
+if singleton:
+    sketch_mem = 300000
 alphabet_info = config["alphabet_info"]
 sample_names = []
 input_types=[]
@@ -106,10 +109,10 @@ def build_sketch_params(output_type):
             if alpha in config["alphabet_info"].keys():
                 ## if ksizes aren't given, sketch protein, dayhoff, hp at the ksizes from default config
                 ksizes = config["alphabet_info"][alpha].get("ksizes", config["alphabet_defaults"][alpha]["ksizes"])
-                scaled = config["alphabet_info"][alpha].get("scaled", config["alphabet_defaults"][alpha]["scaled"])
+                scaled = min(config["alphabet_info"][alpha].get("scaled", config["alphabet_defaults"][alpha]["scaled"]))
             else:
                 ksizes = config["alphabet_defaults"][alpha]["ksizes"]
-                scaled = config["alphabet_defaults"][alpha]["scaled"]
+                scaled = min(config["alphabet_defaults"][alpha]["scaled"])
             sketch_cmd += " -p " + alpha + ",k=" + ",k=".join(map(str, ksizes)) + f",scaled={str(scaled)}" + ",abund"
     return sketch_cmd
 
@@ -118,48 +121,47 @@ def build_signame_cmd(sample, input_type):
         if input_type == "nucleotide":
             signame = genome_info.at[sample, 'signame']
         elif input_type == "protein":
-            sgname = protein_info.at[sample, 'signame'],
-        signame_cmd =  f" --name {signame:q} "
+            signame = protein_info.at[sample, 'signame']
+        signame_cmd =  f" --name '{signame}' "
         return signame_cmd
     else:
         return " --singleton "
 
-rule sourmash_sketch_nucleotide_input:
-    input: 
-        lambda w: os.path.join(data_dir, genome_info.at[w.sample, 'filename'])
-    output:
-        os.path.join(out_dir, "dna-input", "signatures", "{sample}.sig"),
-    params:
-        sketch_params = build_sketch_params("nucleotide"),
-        signame_cmd = lambda w: build_signame_cmd(w.sample, "nucleotide"),
-    threads: 1
-    resources:
-        mem_mb=lambda wildcards, attempt: attempt *1000,
-        runtime=1200,
-    group: "sigs"
-    log: os.path.join(logs_dir, "sourmash_sketch_nucl_input", "{sample}.sketch.log")
-    benchmark: os.path.join(benchmarks_dir, "sourmash_sketch_nucl_input", "{sample}.sketch.benchmark")
-    conda: "envs/sourmash-dev.yml"
-    shell:
-        """
-        sourmash sketch dna -p {params.sketch_params} {params.signame_cmd} -o {output} {input}  2> {log}
-        """
+if dna_input:
+    rule sourmash_sketch_nucleotide_input:
+        input:
+            lambda w: os.path.join(data_dir, genome_info.at[w.sample, 'filename'])
+        output:
+            os.path.join(out_dir, "dna-input", "signatures", "{sample}.sig"),
+        params:
+            sketch_params = build_sketch_params("nucleotide"),
+            signame_cmd = lambda w: build_signame_cmd(w.sample, "nucleotide"),
+        threads: 1
+        resources:
+            mem_mb=lambda wildcards, attempt: attempt *max([1000,sketch_mem]),
+            runtime=1200,
+        log: os.path.join(logs_dir, "sourmash_sketch_nucl_input", "{sample}.sketch.log")
+        benchmark: os.path.join(benchmarks_dir, "sourmash_sketch_nucl_input", "{sample}.sketch.benchmark")
+        conda: "envs/sourmash-dev.yml"
+        shell:
+            """
+            sourmash sketch dna -p {params.sketch_params} {params.signame_cmd} -o {output} {input}  2> {log}
+            """
     
 if protein_input:
     rule sourmash_sketch_protein_input:
-        input: lambda w: os.path.join(data_dir, protein_info.at[w.sample, 'filename'])
+        input:
+            lambda w: os.path.join(data_dir, protein_info.at[w.sample, 'filename'])
         output:
             os.path.join(out_dir, "protein-input", "signatures", "{sample}.sig"),
         params:
             sketch_params = build_sketch_params("protein"),
-            signame_cmd = lambda w: build_signame_cmd(w.sample, "protein"),
-            singleton_cmd = " --singleton " if singleton else ""
+            signame_cmd = lambda w: build_signame_cmd(w.sample, "protein")
         threads: 1
         resources:
-            mem_mb=lambda wildcards, attempt: attempt *1000,
+            mem_mb=lambda wildcards, attempt: attempt *max([1000,sketch_mem]),
             runtime=1200,
-        group: "sigs"
-        log: os.path. join(logs_dir, "sourmash_sketch_prot_input", "{sample}.sketch.log")
+        log: os.path.join(logs_dir, "sourmash_sketch_prot_input", "{sample}.sketch.log")
         benchmark: os.path.join(benchmarks_dir, "sourmash_sketch_prot_input", "{sample}.sketch.benchmark")
         conda: "envs/sourmash-dev.yml"
         shell:
@@ -172,7 +174,6 @@ localrules: signames_to_file
 checkpoint signames_to_file:
     input:  expand(os.path.join(out_dir, "{{input_type}}", "signatures", "{sample}.sig"), sample=sample_names),
     output: os.path.join(out_dir, "{input_type}", "{basename}.signatures.txt")
-    group: "sigs"
     run:
         with open(str(output), "w") as outF:
             for inF in input:
