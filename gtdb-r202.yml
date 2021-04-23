@@ -1,0 +1,35 @@
+# location for all generated files
+basename: gtdb
+release: 202
+
+output_dir: output.gtdb-databases
+
+taxonomy_files: 
+  bac120_taxonomy_r202.tsv.gz: "https://data.ace.uq.edu.au/public/gtdb/data/releases/release_202/202.0/bac120_taxonomy_r202.tsv.gz"
+  ar122_taxonomy_r202.tsv.gz: "https://data.ace.uq.edu.au/public/gtdb/data/releases/release_202/202.0/ar122_taxonomy_r202.tsv.gz"
+
+build_genomic: True
+build_protein: False
+# for sigs that don't exist, download fasta and generate
+genomic:
+  fasta_dir:  /group/ctbrowngrp/gtdb/genomic-input/genomes
+  fasta_suffix: "_genomic.fna.gz"
+  sig_dir: /group/ctbrowngrp/irber/data/wort-data/wort-genomes/sigs
+protein: 
+  fasta_dir:  /group/ctbrowngrp/gtdb/protein-input/proteomes
+  fasta_suffix: "_protein.faa.gz"
+  sig_dir: /group/ctbrowngrp/gtdb/protein-input/signatures
+
+alphabet_info:
+  nucleotide:
+    ksize: [21,31,51]
+    scaled: [1000,2000]
+  protein:
+    ksize: [7,10]
+    scaled: [100,200]
+  dayhoff:
+    ksize: [16]
+    scaled: [100,200]
+  hp:
+    ksize: [42]
+    scaled: [100,200]
