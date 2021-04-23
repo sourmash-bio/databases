@@ -39,7 +39,10 @@ class Checkpoint_MakePattern:
         #accessions = tax_info['accession']
         if config["build_genomic"]:
             tax_info["genomic_filename"] = tax_info["ident"] + config["genomic"]["fasta_suffix"]
-            # check for files that exist; make dictionary of *just those that don't exist yet*
+            # to do:
+              #- check for files that exist; make dictionary of *just those that don't exist yet*
+              #- use that dictionary to download genomes + sketch --> wort dir OR new dir?
+              #
 
 
         if config["build_protein"]:
