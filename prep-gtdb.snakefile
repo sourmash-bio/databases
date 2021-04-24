@@ -121,7 +121,8 @@ class Checkpoint_MakePattern:
 
 
 rule all:
-    input: expand(os.path.join(out_dir, "{basename}.{input_type}.siglist.txt"), basename=basename, input_type=siglist_types)
+    #input: expand(os.path.join(out_dir, "{basename}.{input_type}.siglist.txt"), basename=basename, input_type=siglist_types)
+    input: expand(os.path.join(out_dir, "{basename}.{input_type}.zip"), basename=basename, input_type=siglist_types)
 
 localrules: download_csvs
 rule download_csvs:
@@ -255,4 +256,15 @@ rule signames_to_file:
             for inF in input.sigs:
                 full_filename = os.path.abspath(str(inF))
                 outF.write(full_filename + "\n")
+
+rule sigs_to_zipfile:
+    input: os.path.join(out_dir, "{basename}.{input_type}.siglist.txt")
+    output: os.path.join(out_dir, "{basename}.{input_type}.zip")
+    log: os.path.join(logs_dir, "sigs-to-zipfile", "{basename}.{input_type}.sigs-to-zipfile.log")
+    benchmark: os.path.join(logs_dir, "sigs-to-zipfile", "{basename}.{input_type}.sigs-to-zipfile.benchmark")
+    conda: "envs/sourmash4.yml"
+    shell:
+        """
+        python sigs-to-zipfile.py --sig-pathlist {input} {output} 2> {log}
+        """
 

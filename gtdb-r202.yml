@@ -10,15 +10,12 @@ taxonomy_files:
 
 build_genomic: True
 build_protein: False
-# for sigs that don't exist, download fasta and generate
+
 genomic:
-  fasta_dir:  /group/ctbrowngrp/gtdb/genomic-input/genomes
-  fasta_suffix: "_genomic.fna.gz"
-  sig_dir: /group/ctbrowngrp/irber/data/wort-data/wort-genomes/sigs
+  sig_dir: "/group/ctbrowngrp/irber/data/wort-data/wort-genomes/sigs" # look for sigs here first
 protein: 
-  fasta_dir:  /group/ctbrowngrp/gtdb/protein-input/proteomes
-  fasta_suffix: "_protein.faa.gz"
-  sig_dir: /group/ctbrowngrp/gtdb/protein-input/signatures
+  #fasta_dir:  /group/ctbrowngrp/gtdb/protein-input/proteomes
+  sig_dir: "/group/ctbrowngrp/gtdb/protein-input/signatures" # look for sigs here first
 
 alphabet_info:
   nucleotide:
