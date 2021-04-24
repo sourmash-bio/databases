@@ -18,8 +18,9 @@ def main():
     all_sigs = siglist + args.signatures
 
     n = 0
-    for filename in all_sigs:
-        print(f"reading signatures from '{filename}'")
+    for i, filename in enumerate(all_sigs):
+        if n % 10000 == 0:
+            print(f"... processing {n}th signature; currently reading signatures from '{filename}'")
         for sig in sourmash.load_file_as_signatures(filename):
             # I think the purpose of this is that zip needs something unique for each file.
             # Can't (generally) trust filenames, so use md5sum instead?
