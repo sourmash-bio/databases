@@ -1,6 +1,6 @@
 """
 Author: N Tessa Pierce, UC Davis Lab for Data Intensive Biology
-Run: snakemake -s  prep-gtdb.snakefile -n
+Run: snakemake -s  prep-gtdb.snakefile --group-components sketch=5000 -n
 """
 #- check for files that exist; make dictionary of *just those that don't exist yet*
 #- use that dictionary to download genomes + sketch --> local dir?
@@ -31,7 +31,8 @@ existing_genomic_sigdir = config["genomic"]["sig_dir"]
 new_genomic_sigdir = os.path.join(out_dir, "genomic", "signatures")
 
 existing_protein_sigdir = config["protein"]["sig_dir"]
-new_protein_sigdir = os.path.join(out_dir, "protein", "signatures")
+new_protein_sigdir = existing_protein_sigdir #os.path.join(out_dir, "protein", "signatures")
+#new_protein_sigdir = os.path.join(out_dir, "protein", "signatures")
 
 # check params are in the right format
 for alpha, info in config["alphabet_info"].items():
@@ -257,6 +258,7 @@ rule signames_to_file:
                 full_filename = os.path.abspath(str(inF))
                 outF.write(full_filename + "\n")
 
+localrules: sigs_to_zipfile
 rule sigs_to_zipfile:
     input: os.path.join(out_dir, "{basename}.{input_type}.siglist.txt")
     output: os.path.join(out_dir, "{basename}.{input_type}.zip")
