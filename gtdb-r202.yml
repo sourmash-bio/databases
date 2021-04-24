@@ -8,14 +8,14 @@ taxonomy_files:
   bac120_taxonomy_r202.tsv.gz: "https://data.ace.uq.edu.au/public/gtdb/data/releases/release_202/202.0/bac120_taxonomy_r202.tsv.gz"
   ar122_taxonomy_r202.tsv.gz: "https://data.ace.uq.edu.au/public/gtdb/data/releases/release_202/202.0/ar122_taxonomy_r202.tsv.gz"
 
-build_genomic: True
-build_protein: False
+#build_genomic: True
+build_genomic: False
+build_protein: True
 
 genomic:
   sig_dir: "/group/ctbrowngrp/irber/data/wort-data/wort-genomes/sigs" # look for sigs here first
 protein: 
-  #fasta_dir:  /group/ctbrowngrp/gtdb/protein-input/proteomes
-  sig_dir: "/group/ctbrowngrp/gtdb/protein-input/signatures" # look for sigs here first
+  sig_dir: "/group/ctbrowngrp/gtdb/protein/signatures" # look for sigs here first
 
 alphabet_info:
   nucleotide:

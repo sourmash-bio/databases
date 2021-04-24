@@ -220,7 +220,7 @@ def make_protein_param_str(alphabets=["protein", "dayhoff", "hp"]):
         ks = [ f'k={k}' for k in ksizes ]
         ks = ",".join(ks)
         scaled = min(scaled) #take minimum value of scaled list
-        param_str += f" -p alpha,{ks},scaled={scaled},abund "
+        param_str += f" -p {alpha},{ks},scaled={scaled},abund "
     return param_str
 
 rule stream_and_sketch_protein:
@@ -230,7 +230,7 @@ rule stream_and_sketch_protein:
         os.path.join(new_protein_sigdir, "{accession}.sig"),
     params:
         sketch_params = make_protein_param_str(),
-        signame = lambda w: protein_sketch.at[w.accession, "signame"],
+        signame = lambda w: sketch_protein.at[w.accession, "signame"],
         url_path = lambda w: url_for_accession(w.accession, protein=True)
     threads: 1
     resources:
@@ -242,7 +242,7 @@ rule stream_and_sketch_protein:
     group: "sketch"
     shell:
         """
-        sourmash sketch protein -p {params.sketch_params} -o {output} --name {params.signame:q} {input} 2> {log}
+        sourmash sketch protein {params.sketch_params} -o {output} --name {params.signame:q} <(curl -s {params.url_path} | zcat) 2> {log}
         """
 
 localrules: signames_to_file
