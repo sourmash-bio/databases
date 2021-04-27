@@ -12,21 +12,35 @@ def main():
     p.add_argument('--sig-pathlist')
     args = p.parse_args()
 
-    zf = zipfile.ZipFile(args.zipfile, 'w')
+    zf = zipfile.ZipFile(args.zipfile, 'w', zipfile.ZIP_DEFLATED, compresslevel=9)
 
     siglist = [x.rstrip() for x in open(args.sig_pathlist)]
     all_sigs = siglist + args.signatures
 
     n = 0
+    all_md5=set()
     for i, filename in enumerate(all_sigs):
         if n % 10000 == 0:
             print(f"... processing {n}th signature; currently reading signatures from '{filename}'")
+
         for sig in sourmash.load_file_as_signatures(filename):
-            # I think the purpose of this is that zip needs something unique for each file.
-            # Can't (generally) trust filenames, so use md5sum instead?
-            md5 = 'signatures/' + sig.md5sum() + '.sig'
+            # zip needs a unique name for each signature. Use sig md5sum.
+            md5= sig.md5sum()
+            # if this is a duplicate md5sum, add _{number} to make it unique.
+            if md5 in all_md5:
+                print(f"{str(sig)} has an md5sum identical to one already in the zipfile ({md5})")
+                i=0
+                full_md5 = f"{md5}_{i}"
+                while full_md5 in all_md5:
+                    i+= 1
+                    full_md5 = f"{md5}_{i}"
+                md5=full_md5
+                print(f"...adding unique md5 {md5} instead")
+
+            all_md5.add(md5)
+            md5_name = 'signatures/' + md5 + '.sig'
             sigstr = sourmash.save_signatures([sig])
-            zf.writestr(md5, sigstr)
+            zf.writestr(md5_name, sigstr)
             n += 1
 
     print(f"wrote {n} signatures to '{args.zipfile}'")
