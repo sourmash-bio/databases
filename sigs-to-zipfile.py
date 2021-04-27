@@ -10,9 +10,10 @@ def main():
     p.add_argument('zipfile')
     p.add_argument('signatures', nargs='*')
     p.add_argument('--sig-pathlist')
+    p.add_argument('--compression', type=int, default=9)
     args = p.parse_args()
 
-    zf = zipfile.ZipFile(args.zipfile, 'w', zipfile.ZIP_DEFLATED, compresslevel=9)
+    zf = zipfile.ZipFile(args.zipfile, 'w')
 
     siglist = [x.rstrip() for x in open(args.sig_pathlist)]
     all_sigs = siglist + args.signatures
@@ -28,18 +29,18 @@ def main():
             md5= sig.md5sum()
             # if this is a duplicate md5sum, add _{number} to make it unique.
             if md5 in all_md5:
-                print(f"{str(sig)} has an md5sum identical to one already in the zipfile ({md5})")
+                sys.stderr.write(f"{str(sig)} has an md5sum identical to one already in the zipfile ({md5})")
                 i=0
                 full_md5 = f"{md5}_{i}"
                 while full_md5 in all_md5:
                     i+= 1
                     full_md5 = f"{md5}_{i}"
                 md5=full_md5
-                print(f"...adding unique md5 {md5} instead")
+                sys.stderr.write(f"...adding unique md5 {md5} instead")
 
             all_md5.add(md5)
             md5_name = 'signatures/' + md5 + '.sig'
-            sigstr = sourmash.save_signatures([sig])
+            sigstr = sourmash.save_signatures([sig], compression=args.compression)
             zf.writestr(md5_name, sigstr)
             n += 1
 
