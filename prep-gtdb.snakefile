@@ -20,19 +20,21 @@ data_dir = os.path.join(out_dir, "inputs")
 basename = config["basename"] + "-r" + str(config["release"])
 
 siglist_types = []
-if config["build_genomic"]:
+if config.get("build_genomic", False):
     siglist_types.append("genomic")
-if config["build_protein"]:
+    if config.get("build_representative_sets", False):
+        siglist_types.append("genomic-reps")
+if config.get("build_protein", False):
     siglist_types.append("protein")
-
+    if config.get("build_representative_sets", False):
+        siglist_types.append("protein-reps")
 
 # set signature directories
 existing_genomic_sigdir = config["genomic"]["sig_dir"]
 new_genomic_sigdir = os.path.join(out_dir, "genomic", "signatures")
 
 existing_protein_sigdir = config["protein"]["sig_dir"]
-new_protein_sigdir = existing_protein_sigdir #os.path.join(out_dir, "protein", "signatures")
-#new_protein_sigdir = os.path.join(out_dir, "protein", "signatures")
+new_protein_sigdir = os.path.join(out_dir, "protein", "signatures")
 
 # check params are in the right format
 for alpha, info in config["alphabet_info"].items():
@@ -69,6 +71,9 @@ class Checkpoint_MakePattern:
         sketch_protein = pd.DataFrame()
 
         tax_info = pd.read_csv(f"{out_dir}/{basename}.taxonomy.csv", header=0)
+        #For metadata info: DtypeWarning: Columns (61,65,74,82,83) have mixed types.Specify dtype option on import or set low_memory=False
+        metadata_info = pd.read_csv(f"{out_dir}/{basename}.metadata.csv.gz", header=0, low_memory=False) 
+        representative_accessions = metadata_info[metadata_info["gtdb_representative"] == "t"]["accession"].str.replace("GB_", "").str.replace("RS_", "")
         
         # build dictionaries of accessions we need to download and sketch (genomic, protein)
         if genomic:
@@ -81,11 +86,17 @@ class Checkpoint_MakePattern:
             # DF for just the files that need to be downloaded and sketched
             sketch_genomic = tax_info.loc[~tax_info["genomic_sigfile"].apply(sigfile_exists)]
             sketch_genomic["signame"] = sketch_genomic["ident"] + " " + sketch_genomic["species"].str.replace("s__", "")
+            
+            # find representative genome files
+            representative_genomic = tax_info.loc[tax_info["ident"].isin(representative_accessions)]
+            
             sketch_genomic.set_index("ident", inplace=True)
             print(f"found {len(sketch_genomic)} genomic accessions that need to be downloaded and sketched") 
             
             all_genomic_sigfiles = tax_info["genomic_sigfile"]
-            return all_genomic_sigfiles
+            rep_genomic_sigfiles = representative_genomic["genomic_sigfile"]
+            
+            return all_genomic_sigfiles, rep_genomic_sigfiles
             
 
         if protein:
@@ -97,11 +108,18 @@ class Checkpoint_MakePattern:
             # DF for just the files that need to be downloaded and sketched
             sketch_protein = tax_info[~tax_info["protein_sigfile"].apply(sigfile_exists)]
             sketch_protein["signame"] = sketch_protein["ident"] + " " + sketch_protein["species"].str.replace("s__", "")
-            sketch_protein.set_index("ident", inplace=True)
             print(f"found {len(sketch_protein)} protein accessions that need to be downloaded and sketched") 
+            sketch_protein.set_index("ident", inplace=True)
 
-            all_protein_sigfiles = tax_info["protein_sigfile"]
-            return all_protein_sigfiles
+            # ONLY use genome accessions with protein assemblies
+            all_protein_sigfiles = tax_info[tax_info["ident"].isin(sketch_protein.index)]["protein_sigfile"]
+            #all_protein_sigfiles = tax_info["protein_sigfile"]
+            
+            # find representative protein files
+            representative_protein = tax_info.loc[tax_info["ident"].isin(representative_accessions)]
+            rep_protein_sigfiles = representative_protein["protein_sigfile"]
+            
+            return all_protein_sigfiles, rep_protein_sigfiles
         
 
     def __call__(self, w):
@@ -110,19 +128,24 @@ class Checkpoint_MakePattern:
         # exception until that rule has been run.
 
         checkpoints.check_csv.get(**w)
-        genomic_sigfiles, protein_sigfiles=[],[]
+        
+        # this works, but there is probably a better way to do it...
+        genomic_sigfiles, protein_sigfiles, rep_genomic_sigfiles, rep_protein_sigfiles=[],[],[],[]
         if config["build_genomic"]:
-            genomic_sigfiles = self.find_sigs(genomic=True)
+            genomic_sigfiles, rep_genomic_sigfiles = self.find_sigs(genomic=True)
         if config["build_protein"]:
-            protein_sigfiles = self.find_sigs(protein=True)
-        sigfiles = {"genomic": genomic_sigfiles, "protein": protein_sigfiles}
+            protein_sigfiles, rep_protein_sigfiles = self.find_sigs(protein=True)
+        
+        sigfiles = {"genomic": genomic_sigfiles, 
+                    "protein": protein_sigfiles,
+                    "genomic-reps": rep_genomic_sigfiles, 
+                    "protein-reps": rep_protein_sigfiles }
 
         pattern = expand(self.pattern, sigfile=sigfiles[w.input_type], **w)
         return pattern
 
 
 rule all:
-    #input: expand(os.path.join(out_dir, "{basename}.{input_type}.siglist.txt"), basename=basename, input_type=siglist_types)
     input: expand(os.path.join(out_dir, "{basename}.{input_type}.zip"), basename=basename, input_type=siglist_types)
 
 localrules: download_csvs
@@ -149,12 +172,30 @@ rule make_taxonomy_csv:
         python make-gtdb-taxonomy.py --taxonomy-files {input} --output-csv {output} > {log} 2>&1
         """
 
+localrules: download_metadata_and_combine
+rule download_metadata_and_combine:
+    message: "Download GTDB Metadata"
+    output: os.path.join(out_dir, f"{basename}.metadata.csv.gz")
+    params:
+        outdir = data_dir + "/", # wget --> tar redirect fails without trailing "/"
+        metadata_info = config["metadata_files"],
+    run:
+        for link in params.metadata_info.values():
+            shell("wget {link} -O - | tar  -xzvf - -C {params.outdir}")
+        frames = []
+        for f in params.metadata_info.keys():
+            tsv_file = params.outdir + f
+            frames+=[pd.read_csv(tsv_file, sep="\t", header=0, low_memory=False)]
+        full_info = pd.concat(frames)
+        full_info.to_csv(str(output), index=False)
+ 
 # make the checkpoint work
 localrules: check_csv
 checkpoint check_csv:
-    input: os.path.join(out_dir, f"{basename}.taxonomy.csv")
+    input: 
+        taxonomy=os.path.join(out_dir, f"{basename}.taxonomy.csv"),
+        metadata=os.path.join(out_dir, f"{basename}.metadata.csv.gz")
     output: touch(f"{out_dir}/.check_csv")
-
 
 # from https://github.com/dib-lab/sourmash_databases/blob/6e93e871f2e955853b23e54c12b4fc42fb26ef1c/Snakefile.assembly
 def url_for_accession(accession, protein=False):
@@ -191,8 +232,6 @@ def make_param_str(ksizes, scaled):
     return f"{ks},scaled={scaled},abund"
 
 rule stream_and_sketch_genomic:
-    input:
-        check_csv=f"{out_dir}/.check_csv",
     output:
         os.path.join(new_genomic_sigdir, "{accession}.sig"),
     params:
@@ -225,8 +264,6 @@ def make_protein_param_str(alphabets=["protein", "dayhoff", "hp"]):
     return param_str
 
 rule stream_and_sketch_protein:
-    input:
-        check_csv=f"{out_dir}/.check_csv",
     output:
         os.path.join(new_protein_sigdir, "{accession}.sig"),
     params:
@@ -250,7 +287,7 @@ localrules: signames_to_file
 rule signames_to_file:
     input: 
         csv=f"{out_dir}/.check_csv",
-        sigs=Checkpoint_MakePattern("{sigfile}"),
+        sigs=ancient(Checkpoint_MakePattern("{sigfile}")),
     output: os.path.join(out_dir, "{basename}.{input_type}.siglist.txt")
     run:
         with open(str(output), "w") as outF:
@@ -262,11 +299,13 @@ localrules: sigs_to_zipfile
 rule sigs_to_zipfile:
     input: os.path.join(out_dir, "{basename}.{input_type}.siglist.txt")
     output: os.path.join(out_dir, "{basename}.{input_type}.zip")
+    params:
+        compression=config.get("gzip_compression", 9)
     log: os.path.join(logs_dir, "sigs-to-zipfile", "{basename}.{input_type}.sigs-to-zipfile.log")
     benchmark: os.path.join(logs_dir, "sigs-to-zipfile", "{basename}.{input_type}.sigs-to-zipfile.benchmark")
     conda: "envs/sourmash4.yml"
     shell:
         """
-        python sigs-to-zipfile.py --sig-pathlist {input} {output} 2> {log}
+        python sigs-to-zipfile.py --compression {params.compression} --sig-pathlist {input} {output} 2> {log}
         """
 

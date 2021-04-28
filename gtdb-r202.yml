@@ -3,14 +3,20 @@ basename: gtdb
 release: 202
 
 output_dir: output.gtdb-databases
+gzip_compression: 9
 
 taxonomy_files: 
   bac120_taxonomy_r202.tsv.gz: "https://data.ace.uq.edu.au/public/gtdb/data/releases/release_202/202.0/bac120_taxonomy_r202.tsv.gz"
   ar122_taxonomy_r202.tsv.gz: "https://data.ace.uq.edu.au/public/gtdb/data/releases/release_202/202.0/ar122_taxonomy_r202.tsv.gz"
 
-#build_genomic: True
-build_genomic: False
+# need metadata to determine which genomes are the "representatives"
+metadata_files:
+  ar122_metadata_r202.tsv: "https://data.ace.uq.edu.au/public/gtdb/data/releases/release202/202.0/ar122_metadata_r202.tar.gz"
+  bac120_metadata_r202.tsv: "https://data.ace.uq.edu.au/public/gtdb/data/releases/release202/202.0/bac120_metadata_r202.tar.gz"
+
+build_genomic: True
 build_protein: True
+build_representative_sets: True
 
 genomic:
   sig_dir: "/group/ctbrowngrp/irber/data/wort-data/wort-genomes/sigs" # look for sigs here first
