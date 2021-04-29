@@ -17,6 +17,7 @@ metadata_files:
 build_genomic: True
 build_protein: True
 build_representative_sets: True
+build_by_ksize: True
 
 genomic:
   sig_dir: "/group/ctbrowngrp/irber/data/wort-data/wort-genomes/sigs" # look for sigs here first
@@ -28,11 +29,11 @@ alphabet_info:
     ksize: [21,31,51]
     scaled: [1000,2000]
   protein:
-    ksize: [7,10]
+    ksize: [7,8,9,10,11,12]
     scaled: [100,200]
   dayhoff:
-    ksize: [16]
+    ksize: [15,16,17,18,19]
     scaled: [100,200]
   hp:
-    ksize: [42]
+    ksize: [32,35,42]
     scaled: [100,200]

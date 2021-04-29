@@ -73,85 +73,61 @@ class Checkpoint_MakePattern:
     def __init__(self, pattern):
         self.pattern = pattern
 
-    def find_sigs(self, genomic=False, protein=False):
-        global tax_info
-        global sketch_genomic
-        global sketch_protein
-        global representative_accessions
-        sketch_genomic = pd.DataFrame()
-        sketch_protein = pd.DataFrame()
-
+    def build_taxinfo(self, basename=None, input_type=None):
         tax_info = pd.read_csv(f"{out_dir}/{basename}.taxonomy.csv", header=0)
-        #For metadata info: DtypeWarning: Columns (61,65,74,82,83) have mixed types.Specify dtype option on import or set low_memory=False
+        #For metadata info, pandas needs low_memory=False(DtypeWarning: Columns (61,65,74,82,83) have mixed types.Specify dtype option on import or set low_memory=False)
         metadata_info = pd.read_csv(f"{out_dir}/{basename}.metadata.csv.gz", header=0, low_memory=False) 
         representative_accessions = metadata_info[metadata_info["gtdb_representative"] == "t"]["accession"].str.replace("GB_", "").str.replace("RS_", "")
+        tax_info["signame"] = tax_info["ident"] + " " + tax_info["species"].str.replace("s__", "")
+        # build sigfile basenames
+        tax_info["genomic_sigfile"] = tax_info["ident"] + ".sig"
+        tax_info["protein_sigfile"] = tax_info["ident"] + ".sig"
+        # set accessions as DataFrame Index
+        tax_info.set_index("ident", inplace=True)
+        return tax_info, representative_accessions
+
+    def find_sigs(self, basename=None, input_type=None):
+        # Update sigfile paths for accessions we need to download and sketch (genomic, protein)
         
-        # build dictionaries of accessions we need to download and sketch (genomic, protein)
-        if genomic:
+        if "genomic" in input_type:
             print("finding genomic sigs...")
-            # build sigfile basename
-            tax_info["genomic_sigfile"] = tax_info["ident"] + ".sig"
-            # find all sigpaths:
-            tax_info["genomic_sigfile"] = tax_info["genomic_sigfile"].apply(update_sigpath, sigdir=existing_genomic_sigdir, new_sigdir=new_genomic_sigdir)
-            
-            # DF for just the files that need to be downloaded and sketched
-            sketch_genomic = tax_info.loc[~tax_info["genomic_sigfile"].apply(sigfile_exists)]
-            sketch_genomic["signame"] = sketch_genomic["ident"] + " " + sketch_genomic["species"].str.replace("s__", "")
-            
-            # find representative genome files
-            representative_genomic = tax_info.loc[tax_info["ident"].isin(representative_accessions)]
-            
-            sketch_genomic.set_index("ident", inplace=True)
-            print(f"found {len(sketch_genomic)} genomic accessions that need to be downloaded and sketched") 
-            
-            all_genomic_sigfiles = tax_info["genomic_sigfile"]
-            rep_genomic_sigfiles = representative_genomic["genomic_sigfile"]
-            
-            return all_genomic_sigfiles, rep_genomic_sigfiles
-            
-
-        if protein:
+            sigpath_name = "genomic_sigfile"
+            existing_sigdir = existing_genomic_sigdir
+            new_sigdir = new_genomic_sigdir
+        elif "protein" in input_type:
             print("finding protein sigs...")
-            tax_info["protein_sigfile"] = tax_info["ident"] + ".sig"
-            # find all sigpaths:
-            tax_info["protein_sigfile"] = tax_info["protein_sigfile"].apply(update_sigpath, sigdir=existing_protein_sigdir, new_sigdir=new_protein_sigdir)
-            
-            # DF for just the files that need to be downloaded and sketched
-            sketch_protein = tax_info[~tax_info["protein_sigfile"].apply(sigfile_exists)]
-            sketch_protein["signame"] = sketch_protein["ident"] + " " + sketch_protein["species"].str.replace("s__", "")
-            print(f"found {len(sketch_protein)} protein accessions that need to be downloaded and sketched") 
-            sketch_protein.set_index("ident", inplace=True)
-
-            all_protein_sigfiles = tax_info["protein_sigfile"]
-            #all_protein_sigfiles = tax_info[tax_info["ident"].isin(sketch_protein.index)]["protein_sigfile"]
-            
-            # find representative protein files
-            representative_protein = tax_info.loc[tax_info["ident"].isin(representative_accessions)]
-            rep_protein_sigfiles = representative_protein["protein_sigfile"]
-            
-            return all_protein_sigfiles, rep_protein_sigfiles
+            sigpath_name = "protein_sigfile"
+            existing_sigdir = existing_protein_sigdir
+            new_sigdir = new_protein_sigdir
         
+        # first, update sigpath -- is it in the wort dir, or our local dir?
+        tax_info[sigpath_name] = tax_info[sigpath_name].apply(update_sigpath, sigdir=existing_sigdir, new_sigdir=new_sigdir)
+        # just for nice output, figure out the number of sigfiles that still need to be sketched + print 
+        sketchD = tax_info.loc[~tax_info["genomic_sigfile"].apply(sigfile_exists)]
+        print(f"found {len(sketchD)}accessions that need to be downloaded and sketched for {input_type} databases")
+        # return the path for all sigfiles needed for this database
+        if "reps" in input_type:
+            representatives = tax_info.loc[tax_info.index.isin(representative_accessions)]
+            return representatives[sigpath_name]
+        else:
+            return tax_info[sigpath_name]
 
+    
     def __call__(self, w):
         global checkpoints
+        global tax_info
+        global representative_accessions
+        tax_info = None
         # wait for the results of 'check_csv'; this will trigger an
         # exception until that rule has been run.
-
         checkpoints.check_csv.get(**w)
-        
-        # this works, but there is probably a better way to do it...
-        genomic_sigfiles, protein_sigfiles, rep_genomic_sigfiles, rep_protein_sigfiles=[],[],[],[]
-        if config["build_genomic"]:
-            genomic_sigfiles, rep_genomic_sigfiles = self.find_sigs(genomic=True)
-        if config["build_protein"]:
-            protein_sigfiles, rep_protein_sigfiles = self.find_sigs(protein=True)
-        
-        sigfiles = {"genomic": genomic_sigfiles, 
-                    "protein": protein_sigfiles,
-                    "genomic-reps": rep_genomic_sigfiles, 
-                    "protein-reps": rep_protein_sigfiles }
 
-        pattern = expand(self.pattern, sigfile=sigfiles[w.input_type], **w)
+        if not tax_info:
+            tax_info, representative_accessions = self.build_taxinfo(**w)
+        
+        sigfiles = self.find_sigs(**w)
+        pattern = expand(self.pattern, sigfile=sigfiles, **w)
+        
         return pattern
 
 
@@ -159,33 +135,30 @@ class Check_Protein_Sigs:
     def __init__(self, pattern):
         self.pattern = pattern
 
-    def get_accessions_and_update_sigpaths(self):
-        with open(f"{data_dir}/{basename}.protein-reps.prodigal-siglist.txt", "rt") as fp:
-            accessions = [ x.rstrip().rsplit(".sig") for x in fp ]
+    def update_sigpaths(self, basename=basename, input_type=None):
+        with open(f"{out_dir}/{basename}.{input_type}.prodigal-siglist.txt", "rt") as fp:
+            accessions = [ os.path.basename(x).rstrip().rsplit(".sig")[0] for x in fp ]
             for accession in accessions:
-                taxinfo.at[accession, "protein_sigfile"] = f"{prodigal_sigdir}/{accession}.sig"
+                tax_info.at[accession, "protein_sigfile"] = f"{prodigal_sigdir}/{accession}.prodigal.sig"
+            if input_type == "protein":
+                return tax_info["protein_sigfile"]
+            elif input_type == "protein-reps":
+                # find representative protein files
+                representative_protein = tax_info.loc[tax_info.index.isin(representative_accessions)]
+                return representative_protein["protein_sigfile"]
+            else:
+                print(f"Unknown input type {input_type}!")
+                sys.exit(-1)
             
-            all_protein_sigfiles = tax_info["protein_sigfile"]
-            
-            # find representative protein files
-            representative_protein = tax_info.loc[tax_info["ident"].isin(representative_accessions)]
-            rep_protein_sigfiles = representative_protein["protein_sigfile"]
-            
-        return all_protein_sigfiles, rep_protein_sigfiles
-
     def __call__(self, w):
         global checkpoints
 
         # wait for the results of 'check_proteins'; this will trigger an
         # exception until that rule has been run.
-        #checkpoints.check_proteins.get(**w)
-        checkpoints.check_protein_sigfiles_for_empties.get(**w)
-        protein_sigfiles, rep_protein_sigfiles = self.get_accessions_and_update_sigpaths()
+        checkpoints.check_proteins.get(**w)
+        prot_sigfiles = self.update_sigpaths(**w)
 
-        sigfiles = {"protein": protein_sigfiles,
-                    "protein-reps": rep_protein_sigfiles}
-
-        pattern = expand(self.pattern, sigfile=sigfiles[w.input_type], **w)
+        pattern = expand(self.pattern, sigfile=prot_sigfiles, **w)
         return pattern
 
 
@@ -240,9 +213,10 @@ rule download_metadata_and_combine:
 localrules: check_csv
 checkpoint check_csv:
     input: 
-        taxonomy=os.path.join(out_dir, f"{basename}.taxonomy.csv"),
-        metadata=os.path.join(out_dir, f"{basename}.metadata.csv.gz")
-    output: touch(f"{out_dir}/.check_csv")
+        taxonomy=os.path.join(out_dir, "{basename}.taxonomy.csv"),
+        metadata=os.path.join(out_dir, "{basename}.metadata.csv.gz")
+    output: 
+        touch(os.path.join(out_dir, ".{basename}.{input_type}.check_csv"))
 
 # from https://github.com/dib-lab/sourmash_databases/blob/6e93e871f2e955853b23e54c12b4fc42fb26ef1c/Snakefile.assembly
 def url_for_accession(accession, protein=False):
@@ -258,9 +232,8 @@ def url_for_accession(accession, protein=False):
     try:
         all_names = shell(f"curl -s -l {url}/", read=True).split('\n')
     except CalledProcessError as e:
-        # TODO: might check here if it was a 404 or 5xx, assuming 404
         #raise ValueError(f"Can't find URL for {accession}, tried {url}")
-        return ""
+        return "" #ignore and handle later!
 
     full_name = None
     for name in all_names:
@@ -284,7 +257,7 @@ rule stream_and_sketch_genomic:
         os.path.join(new_genomic_sigdir, "{accession}.sig"),
     params:
         sketch_params=make_param_str(config["alphabet_info"]["nucleotide"]["ksize"], config["alphabet_info"]["nucleotide"]["scaled"]),
-        signame = lambda w: sketch_genomic.at[w.accession, "signame"],
+        signame = lambda w: tax_info.at[w.accession, "signame"],
         url_path = lambda w: url_for_accession(w.accession),
     threads: 1
     resources:
@@ -316,9 +289,8 @@ rule stream_and_sketch_protein:
         os.path.join(new_protein_sigdir, "{accession}.sig"),
     params:
         sketch_params = make_protein_param_str(),
-        signame = lambda w: sketch_protein.at[w.accession, "signame"],
+        signame = lambda w: tax_info.at[w.accession, "signame"],
         url_path = lambda w: url_for_accession(w.accession, protein=True),
-        #error_file = os.path.join(new_protein_sigdir, "{accession}.sig.err"),
     threads: 1
     resources:
         mem_mb=lambda wildcards, attempt: attempt *1000,
@@ -332,51 +304,53 @@ rule stream_and_sketch_protein:
         sourmash sketch protein {params.sketch_params} -o {output} --name {params.signame:q} <(curl -s {params.url_path} | zcat) 2> {log}
         touch {output} 
         """
-    # could touch output file in case it fails
-    #if [[ -s {output} ]] || touch {params.error_file}
 
-checkpoint check_protein_sigfiles_for_empties:
+rule check_protein_sigfiles_for_empties:
     input:
-        csv=f"{out_dir}/.check_csv",
+        csv=os.path.join(out_dir, ".{basename}.{input_type}.check_csv"),
         sigs=ancient(Checkpoint_MakePattern("{sigfile}")),
     output: os.path.join(out_dir, "{basename}.{input_type}.prodigal-siglist.txt")
     wildcard_constraints:
         input_type="protein|protein-reps"
     run:
-        with open(output, 'w') as out:
+        with open(str(output), 'w') as out:
             for sig in input.sigs:
-                if os.path.getsize(str(sig)) == 0:
-                    out.write(f"{str(sig)}\n")
-                
+                sig_str = str(sig)
+                if os.path.getsize(sig_str) == 0:
+                    out.write(f"{sig_str}\n")
+
 
 # make the checkpoint work
-#localrules: check_proteins
-#checkpoint check_proteins:
-#    input:
-#        expand(os.path.join(out_dir, "{basename}.{input_type}.prodigal-siglist.txt"), basename = basename, input_type="protein-reps")
-#        #os.path.join(data_dir, f"{basename}.prodigal-protein.txt")
-#    wildcard_constraints:
-#        input_type="protein|protein-reps"
-#    output: touch(f"{out_dir}/.check_proteins")
+localrules: check_proteins
+checkpoint check_proteins:
+    input:
+        os.path.join(out_dir, "{basename}.{input_type}.prodigal-siglist.txt")
+    wildcard_constraints:
+        input_type="protein|protein-reps"
+    output: touch(os.path.join(out_dir, ".{basename}.{input_type}.check_proteins"))
+          
 
 rule download_genomes_for_failed_protein_sigs:
     output: temp(os.path.join(data_dir, "{accession}_genomic.fna")) # output file marked as temp is deleted after all rules that use it as an input are completed
     params:
         url_path = lambda w: url_for_accession(w.accession),
+    log: os.path.join(logs_dir, "download_genomes_for_failed_protein_sigs", "{accession}.download")
     shell:
         """
-        curl -s {params.url_path} | zcat > {output} 2> {log}
+        curl -s {params.url_path} | gunzip > {output} 2> {log}
         """
 
 rule prodigal_genomes_for_failed_protein_sigs:
     input: os.path.join(data_dir, "{accession}_genomic.fna")
-    output: temp(os.path.join(data_dir, "{accession}.prodigal.faa"))
+    output: 
+        proteins=temp(os.path.join(data_dir, "{accession}.prodigal.faa")),
+        genes=temp(os.path.join(data_dir, "{accession}.prodigal.fna"))
     conda: "envs/prodigal-env.yml"
     log: os.path.join(logs_dir, "prodigal", "{accession}.prodigal.log")
     benchmark: os.path.join(logs_dir, "prodigal", "{accession}.prodigal.benchmark")
     shell:
         """
-         prodigal -i {input} -a {output.proteins} 2> {log}
+         prodigal -i {input} -a {output.proteins} -o {output.genes} 2> {log}
         """
 
 rule sketch_prodigal_genomes_for_failed_protein_downloads:
@@ -384,8 +358,7 @@ rule sketch_prodigal_genomes_for_failed_protein_downloads:
     output: os.path.join(prodigal_sigdir,  "{accession}.prodigal.sig"),
     params:
         sketch_params = make_protein_param_str(),
-        signame = lambda w: sketch_protein.at[w.accession, "signame"],
-        url_path = lambda w: url_for_accession(w.accession, protein=True),
+        signame = lambda w: tax_info.at[w.accession, "signame"],
     threads: 1
     resources:
         mem_mb=lambda wildcards, attempt: attempt *1000,
@@ -402,7 +375,7 @@ rule sketch_prodigal_genomes_for_failed_protein_downloads:
 localrules: genomic_signames_to_file
 rule genomic_signames_to_file:
     input: 
-        csv=f"{out_dir}/.check_csv",
+        csv=os.path.join(out_dir, ".{basename}.{input_type}.check_csv"),
         sigs=ancient(Checkpoint_MakePattern("{sigfile}")),
     output: os.path.join(out_dir, "{basename}.{input_type}.siglist.txt")
     wildcard_constraints:
@@ -416,8 +389,8 @@ rule genomic_signames_to_file:
 localrules: protein_signames_to_file 
 rule protein_signames_to_file:
     input: 
-        #check_proteins=f"{out_dir}/.check_proteins",
-        check_proteins=os.path.join(out_dir, "{basename}.{input_type}.prodigal-siglist.txt"),
+        csv=os.path.join(out_dir, ".{basename}.{input_type}.check_csv"),
+        chpt=os.path.join(out_dir, ".{basename}.{input_type}.check_proteins"),
         sigs=ancient(Check_Protein_Sigs("{sigfile}")),
     output: os.path.join(out_dir, "{basename}.{input_type}.siglist.txt")
     wildcard_constraints:
