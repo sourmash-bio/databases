@@ -124,13 +124,15 @@ class Checkpoint_MakePattern:
         # first, update sigpath -- is it in the wort dir, or our local dir?
         tax_info[sigpath_name] = tax_info[sigpath_name].apply(update_sigpath, sigdir=existing_sigdir, new_sigdir=new_sigdir)
         # just for nice output, figure out the number of sigfiles that still need to be sketched + print 
-        sketchD = tax_info.loc[~tax_info["genomic_sigfile"].apply(sigfile_exists)]
-        print(f"found {len(sketchD)}accessions that need to be downloaded and sketched for {input_type} databases")
+        sketchD = tax_info.loc[~tax_info[sigpath_name].apply(sigfile_exists)]
         # return the path for all sigfiles needed for this database
         if "reps" in input_type:
             representatives = tax_info.loc[tax_info.index.isin(representative_accessions)]
+            reps_to_sketch = sketchD[sketchD.index.isin(representative_accessions)]
+            print(f"found {len(reps_to_sketch)} accessions that need to be downloaded and sketched for {input_type} databases")
             return representatives[sigpath_name]
         else:
+            print(f"found {len(sketchD)} accessions that need to be downloaded and sketched for {input_type} databases")
             return tax_info[sigpath_name]
 
     
