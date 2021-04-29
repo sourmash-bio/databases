@@ -15,6 +15,8 @@ configfile: "gtdb-r202.yml"
 out_dir = config["output_dir"]
 logs_dir = os.path.join(out_dir, "logs")
 data_dir = os.path.join(out_dir, "inputs")
+database_dir = os.path.join(out_dir, "databases")
+param_db_dir = os.path.join(out_dir, "param_databases")
 
 # basename-r{release}
 basename = config["basename"] + "-r" + str(config["release"])
@@ -24,35 +26,54 @@ for alpha, info in config["alphabet_info"].items():
     scaled = info["scaled"]
     ksize = info["ksize"]
     if not isinstance(scaled, list):
-        config["alphabet_info"][alpha]["scaled"] = [scaled]
+        scaled = [scaled]
+        config["alphabet_info"][alpha]["scaled"] = scaled
     if not isinstance(ksize, list):
-        config["alphabet_info"][alpha]["ksize"] = [ksize]
+        ksize=[ksize]
+        config["alphabet_info"][alpha]["ksize"] = ksize
+    # build a parameter for the sppecific zipfiles
+    config["alphabet_info"][alpha]["select_params"] = expand("{alpha}-k{ksize}-scaled{scaled}", alpha=alpha, scaled=scaled, ksize=ksize)
 
-    
-
-nucl_siglists, prot_siglists = [],[]
+inp_types = []
 # genomic zipfiles
 if config.get("build_genomic", False):
-    nucl_siglists.append("genomic")
-    if config.get("build_representative_sets", False):
-        nucl_siglists.append("genomic-reps")
+    inp_types.append("genomic")
 # protein zipfiles
 if config.get("build_protein", False):
-    prot_siglists.append("protein")
-    if config.get("build_representative_sets", False):
-        prot_siglists.append("protein-reps")
+    inp_types.append("protein")
 
-siglist_types = nucl_siglists + prot_siglists
+all_siglists = inp_types
+# build gtdb representative set zipfiles
+if config.get("build_representative_sets", False):
+    all_siglists += [f"{inp}-reps" for inp in inp_types]
+
 # temp hack for protein rep sets
-siglist_types = ["protein-reps"]
+all_siglists = ["protein-reps"]
 
+subset_zipfiles=[]
+if config.get("build_by_ksize", False):
+    # get all specific parameter zipfile combinations
+    for siglist_name in all_siglists:
+        if "genomic" in siglist_name:
+            alpha = ["nucleotide"]
+            select_params = config["alphabet_info"]["nucleotide"]["select_params"]
+            subset_zipfiles = expand(f"{param_db_dir}/{basename}.{siglist_name}." + "{zip_params}.zip", zip_params=select_params)
+        if "protein" in siglist_name:
+            for alpha in ["protein", "dayhoff", "hp"]:
+                if config["alphabet_info"].get(alpha):
+                    select_params = config["alphabet_info"][alpha]["select_params"]
+                    subset_zipfiles = expand(f"{param_db_dir}/{basename}.{siglist_name}." + "{zip_params}.zip", zip_params=select_params)
+                
 # set signature directories
-existing_genomic_sigdir = config["genomic"]["sig_dir"]
 new_genomic_sigdir = os.path.join(out_dir, "genomic", "signatures")
-
-existing_protein_sigdir = config["protein"]["sig_dir"]
 new_protein_sigdir = os.path.join(out_dir, "protein", "signatures")
 prodigal_sigdir = os.path.join(data_dir, "prodigal", "signatures")
+
+config["genomic"]["sig_dir"] = config["genomic"].get("sig_dir", new_genomic_sigdir)
+config["genomic"]["new_sig_dir"] = new_genomic_sigdir
+
+config["protein"]["sig_dir"] = config["protein"].get("sig_dir", new_protein_sigdir)
+config["protein"]["new_sig_dir"] = new_protein_sigdir
 
 
 def sigfile_exists(sigpath):
@@ -92,13 +113,13 @@ class Checkpoint_MakePattern:
         if "genomic" in input_type:
             print("finding genomic sigs...")
             sigpath_name = "genomic_sigfile"
-            existing_sigdir = existing_genomic_sigdir
-            new_sigdir = new_genomic_sigdir
+            existing_sigdir = config["genomic"]["sig_dir"]
+            new_sigdir = config["genomic"]["new_sig_dir"]
         elif "protein" in input_type:
             print("finding protein sigs...")
             sigpath_name = "protein_sigfile"
-            existing_sigdir = existing_protein_sigdir
-            new_sigdir = new_protein_sigdir
+            existing_sigdir = config["protein"]["sig_dir"]
+            new_sigdir = config["protein"]["new_sig_dir"]
         
         # first, update sigpath -- is it in the wort dir, or our local dir?
         tax_info[sigpath_name] = tax_info[sigpath_name].apply(update_sigpath, sigdir=existing_sigdir, new_sigdir=new_sigdir)
@@ -165,8 +186,8 @@ class Check_Protein_Sigs:
 
 rule all:
     input: 
-        expand(os.path.join(out_dir, "databases", "{basename}.{input_type}.zip"), basename=basename, input_type=siglist_types),
-        expand(os.path.join(out_dir, "ksize_databases", "{basename}.{input_type}.k{ksize}.zip"), basename=basename, input_type=nucl_siglists, ksize=config["alphabet_info"]["nucleotide"]["ksize"])
+        expand(os.path.join(database_dir, "{basename}.{input_type}.zip"), basename=basename, input_type=all_siglists),
+        subset_zipfiles,
 
 localrules: download_csvs
 rule download_csvs:
@@ -415,17 +436,18 @@ rule sigs_to_zipfile:
         python sigs-to-zipfile.py --compression {params.compression} --sig-pathlist {input} {output} 2> {log}
         """
 
-localrules: sigs_to_ksize_zipfile
-rule sigs_to_ksize_zipfile:
+localrules: sigs_to_param_zipfile
+rule sigs_to_param_zipfile:
     input: os.path.join(out_dir, "{basename}.{input_type}.siglist.txt")
-    output: os.path.join(out_dir, "ksize_databases", "{basename}.{input_type}.k{ksize}.zip")
+    output: os.path.join(param_db_dir, "{basename}.{input_type}.{alpha}-k{ksize}-scaled{scaled}.zip")
     params:
         compression=config.get("gzip_compression", 9)
-    log: os.path.join(logs_dir, "sigs-to-zipfile", "{basename}.{input_type}.k{ksize}.sigs-to-zipfile.log")
-    benchmark: os.path.join(logs_dir, "sigs-to-zipfile", "{basename}.{input_type}.k{ksize}.sigs-to-zipfile.benchmark")
+    log: os.path.join(logs_dir, "sigs-to-zipfile", "{basename}.{input_type}.{alpha}-k{ksize}-scaled{scaled}.sigs-to-zipfile.log")
+    benchmark: os.path.join(logs_dir, "sigs-to-zipfile", "{basename}.{input_type}.{alpha}-k{ksize}-scaled{scaled}.sigs-to-zipfile.benchmark")
     conda: "envs/sourmash4.yml"
     shell:
         """
-        python sigs-to-zipfile.py --compression {params.compression} --ksize {wildcards.ksize} --sig-pathlist {input} {output} 2> {log}
+        python sigs-to-zipfile.py --compression {params.compression} --ksize {wildcards.ksize} \
+        --alphabet {wildcards.alpha} --scaled {wildcards.scaled} --sig-pathlist {input} {output} 2> {log}
         """
 
