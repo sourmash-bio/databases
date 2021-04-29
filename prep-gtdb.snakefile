@@ -19,23 +19,6 @@ data_dir = os.path.join(out_dir, "inputs")
 # basename-r{release}
 basename = config["basename"] + "-r" + str(config["release"])
 
-siglist_types = []
-if config.get("build_genomic", False):
-    siglist_types.append("genomic")
-    if config.get("build_representative_sets", False):
-        siglist_types.append("genomic-reps")
-if config.get("build_protein", False):
-    siglist_types.append("protein")
-    if config.get("build_representative_sets", False):
-        siglist_types.append("protein-reps")
-
-# set signature directories
-existing_genomic_sigdir = config["genomic"]["sig_dir"]
-new_genomic_sigdir = os.path.join(out_dir, "genomic", "signatures")
-
-existing_protein_sigdir = config["protein"]["sig_dir"]
-new_protein_sigdir = os.path.join(out_dir, "protein", "signatures")
-
 # check params are in the right format
 for alpha, info in config["alphabet_info"].items():
     scaled = info["scaled"]
@@ -44,6 +27,33 @@ for alpha, info in config["alphabet_info"].items():
         config["alphabet_info"][alpha]["scaled"] = [scaled]
     if not isinstance(ksize, list):
         config["alphabet_info"][alpha]["ksize"] = [ksize]
+
+    
+
+nucl_siglists, prot_siglists = [],[]
+# genomic zipfiles
+if config.get("build_genomic", False):
+    nucl_siglists.append("genomic")
+    if config.get("build_representative_sets", False):
+        nucl_siglists.append("genomic-reps")
+# protein zipfiles
+if config.get("build_protein", False):
+    prot_siglists.append("protein")
+    if config.get("build_representative_sets", False):
+        prot_siglists.append("protein-reps")
+
+siglist_types = nucl_siglists + prot_siglists
+# temp hack for protein rep sets
+siglist_types = ["protein-reps"]
+
+# set signature directories
+existing_genomic_sigdir = config["genomic"]["sig_dir"]
+new_genomic_sigdir = os.path.join(out_dir, "genomic", "signatures")
+
+existing_protein_sigdir = config["protein"]["sig_dir"]
+new_protein_sigdir = os.path.join(out_dir, "protein", "signatures")
+prodigal_sigdir = os.path.join(data_dir, "prodigal", "signatures")
+
 
 def sigfile_exists(sigpath):
     # does this sigfile exist already? 
@@ -67,6 +77,7 @@ class Checkpoint_MakePattern:
         global tax_info
         global sketch_genomic
         global sketch_protein
+        global representative_accessions
         sketch_genomic = pd.DataFrame()
         sketch_protein = pd.DataFrame()
 
@@ -111,9 +122,8 @@ class Checkpoint_MakePattern:
             print(f"found {len(sketch_protein)} protein accessions that need to be downloaded and sketched") 
             sketch_protein.set_index("ident", inplace=True)
 
-            # ONLY use genome accessions with protein assemblies
-            all_protein_sigfiles = tax_info[tax_info["ident"].isin(sketch_protein.index)]["protein_sigfile"]
-            #all_protein_sigfiles = tax_info["protein_sigfile"]
+            all_protein_sigfiles = tax_info["protein_sigfile"]
+            #all_protein_sigfiles = tax_info[tax_info["ident"].isin(sketch_protein.index)]["protein_sigfile"]
             
             # find representative protein files
             representative_protein = tax_info.loc[tax_info["ident"].isin(representative_accessions)]
@@ -145,8 +155,44 @@ class Checkpoint_MakePattern:
         return pattern
 
 
+class Check_Protein_Sigs:
+    def __init__(self, pattern):
+        self.pattern = pattern
+
+    def get_accessions_and_update_sigpaths(self):
+        with open(f"{data_dir}/{basename}.protein-reps.prodigal-siglist.txt", "rt") as fp:
+            accessions = [ x.rstrip().rsplit(".sig") for x in fp ]
+            for accession in accessions:
+                taxinfo.at[accession, "protein_sigfile"] = f"{prodigal_sigdir}/{accession}.sig"
+            
+            all_protein_sigfiles = tax_info["protein_sigfile"]
+            
+            # find representative protein files
+            representative_protein = tax_info.loc[tax_info["ident"].isin(representative_accessions)]
+            rep_protein_sigfiles = representative_protein["protein_sigfile"]
+            
+        return all_protein_sigfiles, rep_protein_sigfiles
+
+    def __call__(self, w):
+        global checkpoints
+
+        # wait for the results of 'check_proteins'; this will trigger an
+        # exception until that rule has been run.
+        checkpoints.check_proteins.get(**w)
+        protein_sigfiles, rep_protein_sigfiles = self.get_accessions_and_update_sigpaths()
+
+        sigfiles = {"protein": protein_sigfiles,
+                    "protein-reps": rep_protein_sigfiles}
+
+        pattern = expand(self.pattern, sigfile=sigfiles[w.input_type], **w)
+        return pattern
+
+
+
 rule all:
-    input: expand(os.path.join(out_dir, "{basename}.{input_type}.zip"), basename=basename, input_type=siglist_types)
+    input: 
+        expand(os.path.join(out_dir, "databases", "{basename}.{input_type}.zip"), basename=basename, input_type=siglist_types),
+        expand(os.path.join(out_dir, "ksize_databases", "{basename}.{input_type}.k{ksize}.zip"), basename=basename, input_type=nucl_siglists, ksize=config["alphabet_info"]["nucleotide"]["ksize"])
 
 localrules: download_csvs
 rule download_csvs:
@@ -212,7 +258,8 @@ def url_for_accession(accession, protein=False):
         all_names = shell(f"curl -s -l {url}/", read=True).split('\n')
     except CalledProcessError as e:
         # TODO: might check here if it was a 404 or 5xx, assuming 404
-        raise ValueError(f"Can't find URL for {accession}, tried {url}")
+        #raise ValueError(f"Can't find URL for {accession}, tried {url}")
+        return ""
 
     full_name = None
     for name in all_names:
@@ -269,7 +316,8 @@ rule stream_and_sketch_protein:
     params:
         sketch_params = make_protein_param_str(),
         signame = lambda w: sketch_protein.at[w.accession, "signame"],
-        url_path = lambda w: url_for_accession(w.accession, protein=True)
+        url_path = lambda w: url_for_accession(w.accession, protein=True),
+        #error_file = os.path.join(new_protein_sigdir, "{accession}.sig.err"),
     threads: 1
     resources:
         mem_mb=lambda wildcards, attempt: attempt *1000,
@@ -281,14 +329,97 @@ rule stream_and_sketch_protein:
     shell:
         """
         sourmash sketch protein {params.sketch_params} -o {output} --name {params.signame:q} <(curl -s {params.url_path} | zcat) 2> {log}
+        touch {output} 
+        """
+    # could touch output file in case it fails
+    #if [[ -s {output} ]] || touch {params.error_file}
+
+rule check_protein_sigfiles_for_empties:
+    input:
+        csv=f"{out_dir}/.check_csv",
+        sigs=ancient(Checkpoint_MakePattern("{sigfile}")),
+    output: os.path.join(out_dir, "{basename}.{input_type}.prodigal-siglist.txt")
+    wildcard_constraints:
+        input_type="protein|protein-reps"
+    run:
+        with open(output, 'w') as out:
+            for sig in input.sigs:
+                if os.path.getsize(str(sig)) == 0:
+                    out.write(f"{str(sig)}\n")
+                
+
+# make the checkpoint work
+localrules: check_proteins
+checkpoint check_proteins:
+    input:
+        expand(os.path.join(out_dir, "{basename}.{input_type}.prodigal-siglist.txt"), basename = basename, input_type="protein-reps")
+        #os.path.join(data_dir, f"{basename}.prodigal-protein.txt")
+    wildcard_constraints:
+        input_type="protein|protein-reps"
+    output: touch(f"{out_dir}/.check_proteins")
+
+rule download_genomes_for_failed_protein_sigs:
+    output: temp(os.path.join(data_dir, "{accession}_genomic.fna")) # output file marked as temp is deleted after all rules that use it as an input are completed
+    params:
+        url_path = lambda w: url_for_accession(w.accession),
+    shell:
+        """
+        curl -s {params.url_path} | zcat > {output} 2> {log}
         """
 
-localrules: signames_to_file
-rule signames_to_file:
+rule prodigal_genomes_for_failed_protein_sigs:
+    input: os.path.join(data_dir, "{accession}_genomic.fna")
+    output: temp(os.path.join(data_dir, "{accession}.prodigal.faa"))
+    conda: "envs/prodigal-env.yml"
+    log: os.path.join(logs_dir, "prodigal", "{accession}.prodigal.log")
+    benchmark: os.path.join(logs_dir, "prodigal", "{accession}.prodigal.benchmark")
+    shell:
+        """
+         prodigal -i {input} -a {output.proteins} 2> {log}
+        """
+
+rule sketch_prodigal_genomes_for_failed_protein_downloads:
+    input: os.path.join(data_dir, "{accession}.prodigal.faa")
+    output: os.path.join(prodigal_sigdir,  "{accession}.prodigal.sig"),
+    params:
+        sketch_params = make_protein_param_str(),
+        signame = lambda w: sketch_protein.at[w.accession, "signame"],
+        url_path = lambda w: url_for_accession(w.accession, protein=True),
+    threads: 1
+    resources:
+        mem_mb=lambda wildcards, attempt: attempt *1000,
+        runtime=1200,
+    group: "sketch"
+    log: os.path.join(logs_dir, "sourmash_sketch_protein", "{accession}.prodigal-sketch.log")
+    benchmark: os.path.join(logs_dir, "sourmash_sketch_protein", "{accession}.prodigal-sketch.benchmark")
+    conda: "envs/sourmash4.yml"
+    shell:
+        """
+        sourmash sketch protein {params.sketch_params} -o {output} --name {params.signame:q} {input} 2> {log}
+        """
+
+localrules: genomic_signames_to_file
+rule genomic_signames_to_file:
     input: 
         csv=f"{out_dir}/.check_csv",
         sigs=ancient(Checkpoint_MakePattern("{sigfile}")),
     output: os.path.join(out_dir, "{basename}.{input_type}.siglist.txt")
+    wildcard_constraints:
+        input_type="genomic|genomic-reps"
+    run:
+        with open(str(output), "w") as outF:
+            for inF in input.sigs:
+                full_filename = os.path.abspath(str(inF))
+
+
+localrules: protein_signames_to_file 
+rule protein_signames_to_file:
+    input: 
+        check_proteins=f"{out_dir}/.check_proteins",
+        sigs=ancient(Check_Protein_Sigs("{sigfile}")),
+    output: os.path.join(out_dir, "{basename}.{input_type}.siglist.txt")
+    wildcard_constraints:
+        input_type="protein|protein-reps"
     run:
         with open(str(output), "w") as outF:
             for inF in input.sigs:
@@ -298,7 +429,7 @@ rule signames_to_file:
 localrules: sigs_to_zipfile
 rule sigs_to_zipfile:
     input: os.path.join(out_dir, "{basename}.{input_type}.siglist.txt")
-    output: os.path.join(out_dir, "{basename}.{input_type}.zip")
+    output: os.path.join(out_dir, "databases", "{basename}.{input_type}.zip")
     params:
         compression=config.get("gzip_compression", 9)
     log: os.path.join(logs_dir, "sigs-to-zipfile", "{basename}.{input_type}.sigs-to-zipfile.log")
@@ -307,5 +438,19 @@ rule sigs_to_zipfile:
     shell:
         """
         python sigs-to-zipfile.py --compression {params.compression} --sig-pathlist {input} {output} 2> {log}
+        """
+
+localrules: sigs_to_ksize_zipfile
+rule sigs_to_ksize_zipfile:
+    input: os.path.join(out_dir, "{basename}.{input_type}.siglist.txt")
+    output: os.path.join(out_dir, "ksize_databases", "{basename}.{input_type}.k{ksize}.zip")
+    params:
+        compression=config.get("gzip_compression", 9)
+    log: os.path.join(logs_dir, "sigs-to-zipfile", "{basename}.{input_type}.k{ksize}.sigs-to-zipfile.log")
+    benchmark: os.path.join(logs_dir, "sigs-to-zipfile", "{basename}.{input_type}.k{ksize}.sigs-to-zipfile.benchmark")
+    conda: "envs/sourmash4.yml"
+    shell:
+        """
+        python sigs-to-zipfile.py --compression {params.compression} --ksize {wildcards.ksize} --sig-pathlist {input} {output} 2> {log}
         """
 
