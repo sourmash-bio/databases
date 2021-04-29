@@ -11,6 +11,7 @@ def main():
     p.add_argument('signatures', nargs='*')
     p.add_argument('--sig-pathlist')
     p.add_argument('--compression', type=int, default=9)
+    p.add_argument('--ksize', type=int) #nargs="*", default=[21,31,51]) #allow multiple??
     args = p.parse_args()
 
     zf = zipfile.ZipFile(args.zipfile, 'w')
@@ -24,7 +25,7 @@ def main():
         if n % 10000 == 0:
             print(f"... processing {n}th signature; currently reading signatures from '{filename}'")
 
-        for sig in sourmash.load_file_as_signatures(filename):
+        for sig in sourmash.load_file_as_signatures(filename, ksize=args.ksize):
             # zip needs a unique name for each signature. Use sig md5sum.
             md5= sig.md5sum()
             # if this is a duplicate md5sum, add _{number} to make it unique.
