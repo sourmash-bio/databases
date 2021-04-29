@@ -178,7 +178,8 @@ class Check_Protein_Sigs:
 
         # wait for the results of 'check_proteins'; this will trigger an
         # exception until that rule has been run.
-        checkpoints.check_proteins.get(**w)
+        #checkpoints.check_proteins.get(**w)
+        checkpoints.check_protein_sigfiles_for_empties.get(**w)
         protein_sigfiles, rep_protein_sigfiles = self.get_accessions_and_update_sigpaths()
 
         sigfiles = {"protein": protein_sigfiles,
@@ -334,7 +335,7 @@ rule stream_and_sketch_protein:
     # could touch output file in case it fails
     #if [[ -s {output} ]] || touch {params.error_file}
 
-rule check_protein_sigfiles_for_empties:
+checkpoint check_protein_sigfiles_for_empties:
     input:
         csv=f"{out_dir}/.check_csv",
         sigs=ancient(Checkpoint_MakePattern("{sigfile}")),
@@ -349,14 +350,14 @@ rule check_protein_sigfiles_for_empties:
                 
 
 # make the checkpoint work
-localrules: check_proteins
-checkpoint check_proteins:
-    input:
-        expand(os.path.join(out_dir, "{basename}.{input_type}.prodigal-siglist.txt"), basename = basename, input_type="protein-reps")
-        #os.path.join(data_dir, f"{basename}.prodigal-protein.txt")
-    wildcard_constraints:
-        input_type="protein|protein-reps"
-    output: touch(f"{out_dir}/.check_proteins")
+#localrules: check_proteins
+#checkpoint check_proteins:
+#    input:
+#        expand(os.path.join(out_dir, "{basename}.{input_type}.prodigal-siglist.txt"), basename = basename, input_type="protein-reps")
+#        #os.path.join(data_dir, f"{basename}.prodigal-protein.txt")
+#    wildcard_constraints:
+#        input_type="protein|protein-reps"
+#    output: touch(f"{out_dir}/.check_proteins")
 
 rule download_genomes_for_failed_protein_sigs:
     output: temp(os.path.join(data_dir, "{accession}_genomic.fna")) # output file marked as temp is deleted after all rules that use it as an input are completed
@@ -415,7 +416,8 @@ rule genomic_signames_to_file:
 localrules: protein_signames_to_file 
 rule protein_signames_to_file:
     input: 
-        check_proteins=f"{out_dir}/.check_proteins",
+        #check_proteins=f"{out_dir}/.check_proteins",
+        check_proteins=os.path.join(out_dir, "{basename}.{input_type}.prodigal-siglist.txt"),
         sigs=ancient(Check_Protein_Sigs("{sigfile}")),
     output: os.path.join(out_dir, "{basename}.{input_type}.siglist.txt")
     wildcard_constraints:
