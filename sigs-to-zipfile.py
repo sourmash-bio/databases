@@ -50,7 +50,7 @@ def main():
             all_md5.add(md5)
             md5_name = 'signatures/' + md5 + '.sig'
             # once, check we can downsample
-            if not sig_scaled:
+            if args.scaled and not sig_scaled:
                 sig_scaled = sig.minhash.scaled
                 if args.scaled < sig_scaled:
                     print(f"Can't downsample: desired scaled {args.scaled} is smaller than original scaled, {sig_scaled}. Exiting!")

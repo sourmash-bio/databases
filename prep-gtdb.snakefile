@@ -239,7 +239,7 @@ checkpoint check_csv:
         taxonomy=os.path.join(out_dir, "{basename}.taxonomy.csv"),
         metadata=os.path.join(out_dir, "{basename}.metadata.csv.gz")
     output: 
-        touch(os.path.join(out_dir, ".{basename}.{input_type}.check_csv"))
+        temp(touch(os.path.join(out_dir, ".{basename}.{input_type}.check_csv")))
 
 # from https://github.com/dib-lab/sourmash_databases/blob/6e93e871f2e955853b23e54c12b4fc42fb26ef1c/Snakefile.assembly
 def url_for_accession(accession, protein=False):
@@ -260,7 +260,10 @@ def url_for_accession(accession, protein=False):
 
     full_name = None
     for name in all_names:
-        db_, acc_, *_ = name.split("_")
+        try:
+            db_, acc_, *_ = name.split("_")
+        except:
+            continue
         if db_ == db and acc == acc_:
             full_name = name
             break
@@ -350,7 +353,7 @@ checkpoint check_proteins:
         os.path.join(out_dir, "{basename}.{input_type}.prodigal-siglist.txt")
     wildcard_constraints:
         input_type="protein|protein-reps"
-    output: touch(os.path.join(out_dir, ".{basename}.{input_type}.check_proteins"))
+    output: temp(touch(os.path.join(out_dir, ".{basename}.{input_type}.check_proteins")))
           
 
 rule download_genomes_for_failed_protein_sigs:
