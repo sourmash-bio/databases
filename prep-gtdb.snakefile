@@ -64,7 +64,7 @@ if config.get("build_by_ksize", False):
             for alpha in ["protein", "dayhoff", "hp"]:
                 if config["alphabet_info"].get(alpha):
                     select_params = config["alphabet_info"][alpha]["select_params"]
-                    subset_zipfiles = expand(f"{param_db_dir}/{basename}.{siglist_name}." + "{zip_params}.zip", zip_params=select_params)
+                    subset_zipfiles += expand(f"{param_db_dir}/{basename}.{siglist_name}." + "{zip_params}.zip", zip_params=select_params)
                 
 # set signature directories
 new_genomic_sigdir = os.path.join(out_dir, "genomic", "signatures")
