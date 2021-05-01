@@ -18,6 +18,8 @@ data_dir = os.path.join(out_dir, "inputs")
 database_dir = os.path.join(out_dir, "databases")
 param_db_dir = os.path.join(out_dir, "param_databases")
 
+version_errors_log = os.path.join(out_dir, "accession_version_errors.csv")
+
 # basename-r{release}
 basename = config["basename"] + "-r" + str(config["release"])
 
@@ -247,7 +249,7 @@ def url_for_accession(accession, protein=False):
     if protein:
         fasta_ext = "protein.faa.gz"
     db, acc = accession.split("_")
-    number, version = acc.split(".")
+    number, asmb_version = acc.split(".")
     number = "/".join([number[pos:pos + 3] for pos in range(0, len(number), 3)])
     url = f"ftp://ftp.ncbi.nlm.nih.gov/genomes/all/{db}/{number}"
 
@@ -256,17 +258,28 @@ def url_for_accession(accession, protein=False):
         all_names = shell(f"curl -s -l {url}/", read=True).split('\n')
     except CalledProcessError as e:
         #raise ValueError(f"Can't find URL for {accession}, tried {url}")
-        return "" #ignore and handle later!
+        return "" #ignore and handle later
 
     full_name = None
     for name in all_names:
-        try:
+        if name: # ignore empties
             db_, acc_, *_ = name.split("_")
-        except:
-            continue
-        if db_ == db and acc == acc_:
-            full_name = name
-            break
+            if db_ == db and acc == acc_:
+                full_name = name
+                break
+    
+    # try to handle "This version of the assembly has been suppressed." errors
+    # e.g. https://www.ncbi.nlm.nih.gov/assembly/GCF_000702925.2/#/def
+    if not full_name:
+        for name in all_names:
+            if name: # ignore empties
+                db_, acc_, *_ = name.split("_")
+                prev_version_acc = acc[:-1] + str(int(asmb_version) -1)
+                if db_ == db and prev_version_acc == acc_:
+                    full_name = name
+                    with open (version_errors_log, "a+") as out: # append if already exists
+                        out.write(f"{accession},{db+prev_version_acc},{full_name}\n")
+                    break
 
     url = "https" + url[3:]
     return f"{url}/{full_name}/{full_name}_{fasta_ext}"
@@ -331,7 +344,7 @@ rule stream_and_sketch_protein:
         touch {output} 
         """
 
-rule check_protein_sigfiles_for_empties:
+rule check_protein_sigfiles:
     input:
         csv=os.path.join(out_dir, ".{basename}.{input_type}.check_csv"),
         sigs=ancient(Checkpoint_MakePattern("{sigfile}")),
@@ -418,14 +431,36 @@ rule protein_signames_to_file:
         csv=os.path.join(out_dir, ".{basename}.{input_type}.check_csv"),
         chpt=os.path.join(out_dir, ".{basename}.{input_type}.check_proteins"),
         sigs=ancient(Check_Protein_Sigs("{sigfile}")),
-    output: os.path.join(out_dir, "{basename}.{input_type}.siglist.txt")
+    output: 
+        os.path.join(out_dir, "{basename}.{input_type}.siglist.txt")
+    params: 
+        version_errors = version_errors_log
     wildcard_constraints:
         input_type="protein|protein-reps"
     run:
+        import shutil
+        if os.path.exists(version_errors_log):
+            version_err = pd.read_csv(version_errors_log, header=None, names = ["accession", "prev_version", "full_name"])
+            version_err.set_index("accession", inplace=True)
+        else:
+            version_err =pd.DataFrame()
         with open(str(output), "w") as outF:
             for inF in input.sigs:
-                full_filename = os.path.abspath(str(inF))
+                sig_str = str(inF)
+                accession = os.path.basename(sig_str).rsplit(".sig")[0]
+                if accession in version_err.index:
+                    new_accession = version_err.at[accession, "prev_version"]
+                    new_sigstr = os.path.dirname(sig_str) + "/" + new_accession + ".sig"
+                    print(f"renaming {sig_str} to {new_sigstr} to reflect version error\n")
+                    shutil.copyfile(sig_str, new_sigstr)
+                    # rename in tax_info so siglists have the new accession, instead of the old!
+                    # does this actually mean anything at this point? I think I need to write an updated taxonomy file, argh
+                    tax_info.rename(index={accession:new_accession}, inplace=True)
+                    sig_str = new_sigstr
+                full_filename = os.path.abspath(sig_str)
                 outF.write(full_filename + "\n")
+                
+        
 
 localrules: sigs_to_zipfile
 rule sigs_to_zipfile:
